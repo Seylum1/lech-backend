@@ -42,6 +42,21 @@ app.get("/health", async (req, res) => {
   catch (e) { res.status(500).json({ ok: false, db: "error", error: e.message }); }
 });
 
+// A well-formed Minecraft name (3–16 of letters/digits/underscore). Format is
+// checked first; existence is then confirmed live against Mojang below.
+const MC_NAME_RE = /^[A-Za-z0-9_]{3,16}$/;
+// Confirms the name belongs to a real Minecraft account and returns its canonical
+// spelling + UUID (used for the default avatar). Any network trouble is reported
+// as "error" so registration fails closed rather than accepting an unverified name.
+async function verifyMinecraftName(name) {
+  try {
+    const r = await fetch("https://api.mojang.com/users/profiles/minecraft/" + encodeURIComponent(name));
+    if (r.status === 200) { const d = await r.json(); if (d && d.id) return { ok: true, uuid: d.id, name: d.name || name }; return { ok: false, reason: "not_found" }; }
+    if (r.status === 204 || r.status === 404) return { ok: false, reason: "not_found" };
+    return { ok: false, reason: "error" };
+  } catch (e) { return { ok: false, reason: "error" }; }
+}
+
 // ── LOGIN & SESSIONS ───────────────────────────────────────────────────────────
 // Verifies against the hashes carried over from the old system (salted or legacy
 // unsalted SHA-256), so everyone's existing password keeps working. Issues a
@@ -123,6 +138,52 @@ app.post("/api/login", async (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
+// Public self-registration. Anyone may create their own account, but only their
+// own and only with safe defaults: an ordinary citizen at zero clearance. The
+// username must be a real Minecraft account (verified against Mojang). Every new
+// account begins as a Registered Alien on the citizenship register; ticking the
+// citizen box flags that record for the Ministry of Foreign Affairs to review.
+app.post("/api/register", async (req, res) => {
+  try {
+    const raw = String((req.body && req.body.username) || "").trim();
+    const passwordHash = String((req.body && req.body.passwordHash) || "");
+    const displayName = String((req.body && req.body.displayName) || "").trim();
+    const wantsCitizen = !!(req.body && req.body.citizen);
+    if (!MC_NAME_RE.test(raw)) return res.status(400).json({ ok: false, error: "Enter a valid Minecraft username (3–16 letters, numbers or underscores)." });
+    if (!/^[a-f0-9]{64}$/i.test(passwordHash)) return res.status(400).json({ ok: false, error: "A password is required." });
+    const id = raw.toLowerCase();
+    if (await db.collection("accounts").findOne({ _id: id }, { projection: { _id: 1 } }))
+      return res.status(409).json({ ok: false, error: "An account with that username already exists — try signing in." });
+    const mc = await verifyMinecraftName(raw);
+    if (!mc.ok) {
+      if (mc.reason === "not_found") return res.status(400).json({ ok: false, error: "No Minecraft account by that name. Enter your exact Minecraft username." });
+      return res.status(503).json({ ok: false, error: "Couldn't reach Minecraft to verify that name. Please try again in a moment." });
+    }
+    const now = Date.now();
+    const doc = {
+      _id: id, username: id, displayName: displayName || mc.name, passwordHash,
+      role: "citizen", clearance: 0, ministry: "Civilian", isContractor: false,
+      stateOfResidency: "", mcUuid: mc.uuid, mcName: mc.name,
+      citizenshipStatus: "alien", pfpLocked: false, notes: "",
+      _selfRegistered: true, _writtenBy: id, _writtenAt: now,
+    };
+    await db.collection("accounts").insertOne(doc);
+    // Seed a citizenship record so the register — and the citizen's own portal —
+    // shows them as a Registered Alien from the outset. The review flag is what
+    // the MOFA panel surfaces when they asked to be considered for citizenship.
+    const citId = "cit_" + crypto.randomUUID().slice(0, 12);
+    await db.collection("mfa_citizens").replaceOne({ _id: citId }, {
+      _id: citId, id: citId, username: id, name: doc.displayName,
+      status: "alien", since: "", notes: "",
+      reviewRequested: wantsCitizen, reviewRequestedAt: wantsCitizen ? now : null,
+      _writtenBy: id, _writtenAt: now,
+    }, { upsert: true });
+    const token = crypto.randomUUID();
+    await db.collection("sessions").insertOne({ _id: token, username: id, exp: now + SESSION_TTL_MS });
+    res.json({ ok: true, token, account: sanitizeAccount(doc) });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 app.post("/api/logout", async (req, res) => {
   const t = (req.body && req.body.token) || "";
   if (t) await db.collection("sessions").deleteOne({ _id: t });
@@ -133,6 +194,47 @@ app.get("/api/me", async (req, res) => {
   const acc = await actorFromReq(req);
   if (!acc) return res.status(401).json({ ok: false, error: "Not authenticated" });
   res.json({ ok: true, account: sanitizeAccount(acc) });
+});
+
+// Self-service password change: any signed-in account may change its own password
+// after proving the current one. The new hash is stored unsalted (matching how
+// the client computes it), so the next login verifies cleanly.
+app.post("/api/change-password", async (req, res) => {
+  try {
+    const actor = await actorFromReq(req);
+    if (!actor) return res.status(401).json({ ok: false, error: "Not authenticated" });
+    const oldPw = String((req.body && req.body.oldPassword) || "");
+    const newHash = String((req.body && req.body.newPasswordHash) || "");
+    if (!verifyPassword(actor, oldPw)) return res.status(403).json({ ok: false, error: "Your current password is incorrect." });
+    if (!/^[a-f0-9]{64}$/i.test(newHash)) return res.status(400).json({ ok: false, error: "The new password is not valid." });
+    await db.collection("accounts").updateOne({ _id: actor._id }, { $set: { passwordHash: newHash, _writtenAt: Date.now() }, $unset: { salt: "" } });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Profile pictures live in their own collection so the account store — and every
+// /api/data snapshot — stays lean. A citizen sets their own; the Interior
+// Ministry can reset anyone's and, separately, lock an account (pfpLocked, an
+// ordinary account field) so the holder can no longer change it.
+app.post("/api/profile-picture", async (req, res) => {
+  try {
+    const actor = await actorFromReq(req);
+    if (!actor) return res.status(401).json({ ok: false, error: "Not authenticated" });
+    const target = String((req.body && req.body.username) || "").trim().toLowerCase() || actor._id;
+    const isSelf = target === actor._id;
+    const isInterior = actor.role === "emperor" || actor.role === "minister";
+    if (!isSelf && !isInterior) return res.status(403).json({ ok: false, error: "You may only change your own profile picture." });
+    if (isSelf && !isInterior && actor.pfpLocked) return res.status(403).json({ ok: false, error: "Your profile picture has been locked by the Ministry of the Interior." });
+    if (req.body && req.body.clear === true) {
+      await db.collection("mi_pfp").deleteOne({ _id: target });
+      return res.json({ ok: true, cleared: true });
+    }
+    const img = String((req.body && req.body.img) || "");
+    if (!/^data:image\/(png|jpe?g|webp|gif);base64,/.test(img)) return res.status(400).json({ ok: false, error: "Unsupported image format." });
+    if (img.length > 1400000) return res.status(413).json({ ok: false, error: "That image is too large — keep it under about 1 MB." });
+    await db.collection("mi_pfp").replaceOne({ _id: target }, { _id: target, img, updatedAt: Date.now(), updatedBy: actor._id }, { upsert: true });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
 // Master-password administration — Emperor only. GET reports whether one is set
@@ -362,6 +464,8 @@ async function writeRule(collection, actor, record) {
   if (!actor) return "Not authenticated";
   // The master-password store is written only through /api/master-password (Emperor).
   if (collection === "secrets") return "Forbidden";
+  // Profile pictures are written only through /api/profile-picture.
+  if (collection === "mi_pfp") return "Use /api/profile-picture";
   if (collection === "accounts") return await authorizeAccountWrite(actor, record);
   if (collection === "mi_lss_ops" || collection === "mi_lss_docs") {
     if (!canSeeLSS(actor)) return "Not authorised (LSS)";
@@ -374,6 +478,7 @@ async function writeRule(collection, actor, record) {
 async function deleteRule(collection, actor) {
   if (!actor) return "Not authenticated";
   if (collection === "secrets") return "Forbidden";
+  if (collection === "mi_pfp") return "Use /api/profile-picture";
   if (collection === "accounts") return (actor.role === "emperor" || actor.role === "minister") ? null : "Only the Interior Ministry may delete accounts";
   if (collection === "mi_lss_ops" || collection === "mi_lss_docs") return canSeeLSS(actor) ? null : "Not authorised (LSS)";
   if (collection === "mi_lfp_ops" || collection === "mi_arrests") return canSeeLFP(actor) ? null : "Not authorised (LFP)";
@@ -423,7 +528,7 @@ app.post("/api/delete", async (req, res) => {
 // classified records are refused here and must go through /api/write, which
 // enforces the per-record rules. Classification mirrors how the data was
 // imported, so writes round-trip with /api/data.
-const NON_KV = (key) => key === "mi_accounts" || key === "secrets" || key.indexOf("mi_acc_") === 0 || !!PROTECTED[key];
+const NON_KV = (key) => key === "mi_accounts" || key === "secrets" || key === "mi_pfp" || key.indexOf("mi_acc_") === 0 || !!PROTECTED[key];
 async function classifyKey(key, value) {
   if (SINGLETON_KEYS.has(key)) return "singleton";
   if (await db.collection("singletons").findOne({ _id: key }, { projection: { _id: 1 } })) return "singleton";
