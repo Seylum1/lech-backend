@@ -83,6 +83,43 @@ app.get("/api/me", async (req, res) => {
   res.json({ ok: true, account: sanitizeAccount(acc) });
 });
 
+// ── PER-RECORD READS ───────────────────────────────────────────────────────────
+// Sensitive collections are filtered on the server by the viewer's agency
+// membership and clearance — the same rules the UI used to apply in the browser,
+// now enforced where F12 can't reach. Everything not listed here stays public.
+const PROTECTED = { mi_lss_ops: "lss", mi_lss_docs: "lss", mi_lfp_ops: "lfp", mi_arrests: "arrests" };
+function lssRoleOf(a) { if (!a) return ""; if (a.lssRole) return a.lssRole; if (a.role === "lss_director") return "director"; if (a.role === "lss_agent" || a.agentAssigned) return "agent"; return ""; }
+function lfpRoleOf(a) { if (!a) return ""; if (a.lfpRole) return a.lfpRole; if (a.role === "lfp_director") return "director"; if (a.role === "lfp_officer" || a.officerAssigned) return "officer"; return ""; }
+function isMinOrEmperor(a) { return !!a && (a.role === "emperor" || a.role === "minister"); }
+function canSeeLSS(a) { return !!a && (isMinOrEmperor(a) || !!lssRoleOf(a)); }
+function canSeeLFP(a) { return !!a && (isMinOrEmperor(a) || !!lfpRoleOf(a)); }
+
+app.get("/api/collection/:name", async (req, res) => {
+  try {
+    const name = req.params.name;
+    const actor = await actorFromReq(req);
+    const kind = PROTECTED[name];
+    const all = () => db.collection(name).find({}).toArray();
+
+    if (!kind) return res.json({ ok: true, data: await all() });         // public
+
+    if (kind === "lss") {
+      if (!canSeeLSS(actor)) return res.json({ ok: true, data: [] });
+      const cl = actor.clearance || 0;
+      return res.json({ ok: true, data: (await all()).filter(d => (d.clearance || 0) <= cl) });
+    }
+    if (kind === "lfp") {
+      if (!canSeeLFP(actor)) return res.json({ ok: true, data: [] });
+      return res.json({ ok: true, data: await all() });
+    }
+    if (kind === "arrests") {
+      if (!canSeeLFP(actor)) return res.json({ ok: true, data: [] });
+      return res.json({ ok: true, data: await all() });   // MDT-seal refinement pending
+    }
+    return res.json({ ok: true, data: [] });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 // ── ONE-TIME DATA IMPORT ───────────────────────────────────────────────────────
 // Copies everything from both Sheets backends into MongoDB. Safe to re-run (it
 // replaces the Mongo copy each time). Reads only — your Sheets are untouched.
