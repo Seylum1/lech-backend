@@ -244,6 +244,12 @@ app.post("/api/set", async (req, res) => {
     const { key, value } = req.body || {};
     if (!key) return res.status(400).json({ ok: false, error: "Missing key" });
     if (NON_KV(key)) return res.status(403).json({ ok: false, error: "Use /api/write for accounts and classified records" });
+    // Bills were grouped into bk_bills on import; keep new ones there too so a
+    // new bk_bill_* lands alongside the rest instead of in singletons.
+    if (key.indexOf("bk_bill_") === 0) {
+      await db.collection("bk_bills").replaceOne({ _id: key }, { ...value, _id: key }, { upsert: true });
+      return res.json({ ok: true });
+    }
     if (await classifyKey(key, value) === "collection") {
       const cn = collName(key);
       const docs = Object.entries(value || {}).map(([id, rec]) => ({ ...rec, _id: id }));
@@ -263,6 +269,7 @@ app.post("/api/unset", async (req, res) => {
     const { key } = req.body || {};
     if (!key) return res.status(400).json({ ok: false, error: "Missing key" });
     if (NON_KV(key)) return res.status(403).json({ ok: false, error: "Use /api/delete" });
+    if (key.indexOf("bk_bill_") === 0) { await db.collection("bk_bills").deleteOne({ _id: key }); return res.json({ ok: true }); }
     await db.collection("singletons").deleteOne({ _id: key });
     const cn = collName(key);
     if ((await db.listCollections({ name: cn }).toArray()).length) await db.collection(cn).drop().catch(() => {});
