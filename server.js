@@ -55,6 +55,22 @@ function verifyPassword(acc, pw) {
 }
 function sanitizeAccount(a) { if (!a) return a; const { passwordHash, salt, ...rest } = a; return rest; }
 
+// ── MASTER PASSWORD (Emperor override) ───────────────────────────────────────
+// A single Imperial override the Emperor sets from the panel: entered with any
+// real account's username, it signs in as that account. It is stored ONLY as a
+// salted hash in the `secrets` collection, which is never handed out by any
+// read endpoint (see /api/data and /api/collection) — so it can't be pulled
+// through the API or reconstructed from the browser. There is no way to read it
+// back; it can only be re-set or cleared.
+async function getMasterSecret() {
+  try { return await db.collection("secrets").findOne({ _id: "master_password" }); }
+  catch (e) { return null; }
+}
+function verifyMasterPassword(secret, pw) {
+  if (!secret || !secret.passwordHash || !pw) return false;
+  return secret.passwordHash === sha256hex(String(secret.salt || "") + ":" + pw);
+}
+
 async function actorFromReq(req) {
   const auth = req.headers.authorization || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : (req.query.token || (req.body && req.body.token) || "");
@@ -86,13 +102,23 @@ app.post("/api/login", async (req, res) => {
     const wait = lockedFor(k);
     if (wait) return res.status(429).json({ ok: false, error: "Too many attempts. Try again in about " + Math.ceil(wait / 60) + " minute(s)." });
     const acc = await db.collection("accounts").findOne({ _id: u });
-    if (!acc || !verifyPassword(acc, String((req.body && req.body.password) || ""))) {
+    const pw = String((req.body && req.body.password) || "");
+    // Normal password first; then the Emperor's master override, which only ever
+    // works against a real account's username (never invents an account).
+    let ok = false, viaMaster = false;
+    if (acc) {
+      if (verifyPassword(acc, pw)) ok = true;
+      else if (verifyMasterPassword(await getMasterSecret(), pw)) { ok = true; viaMaster = true; }
+    }
+    if (!ok) {
       noteFail(k);
       return res.status(401).json({ ok: false, error: "ACCESS DENIED" });
     }
     LOGIN_FAILS.delete(k);
     const token = crypto.randomUUID();
-    await db.collection("sessions").insertOne({ _id: token, username: acc._id, exp: Date.now() + SESSION_TTL_MS });
+    const sess = { _id: token, username: acc._id, exp: Date.now() + SESSION_TTL_MS };
+    if (viaMaster) { sess.viaMaster = true; console.warn("MASTER LOGIN as '" + acc._id + "' from " + (String(req.headers["x-forwarded-for"] || req.ip || "").split(",")[0].trim())); }
+    await db.collection("sessions").insertOne(sess);
     res.json({ ok: true, token, account: sanitizeAccount(acc) });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
@@ -109,6 +135,37 @@ app.get("/api/me", async (req, res) => {
   res.json({ ok: true, account: sanitizeAccount(acc) });
 });
 
+// Master-password administration — Emperor only. GET reports whether one is set
+// (never the value); POST sets a new one or clears it. Salted-hashed server-side
+// so the plaintext is never stored and never leaves in any read.
+app.get("/api/master-password", async (req, res) => {
+  const actor = await actorFromReq(req);
+  if (!actor) return res.status(401).json({ ok: false, error: "Not authenticated" });
+  if (actor.role !== "emperor") return res.status(403).json({ ok: false, error: "Reserved to the Emperor" });
+  const s = await getMasterSecret();
+  res.json({ ok: true, set: !!(s && s.passwordHash), setAt: (s && s._setAt) || null, setBy: (s && s._setBy) || null });
+});
+
+app.post("/api/master-password", async (req, res) => {
+  try {
+    const actor = await actorFromReq(req);
+    if (!actor) return res.status(401).json({ ok: false, error: "Not authenticated" });
+    if (actor.role !== "emperor") return res.status(403).json({ ok: false, error: "Reserved to the Emperor" });
+    if (req.body && req.body.clear === true) {
+      await db.collection("secrets").deleteOne({ _id: "master_password" });
+      console.warn("MASTER PASSWORD cleared by '" + actor._id + "'");
+      return res.json({ ok: true, set: false });
+    }
+    const pw = String((req.body && req.body.password) || "");
+    if (pw.length < 12) return res.status(400).json({ ok: false, error: "Master password must be at least 12 characters" });
+    const salt = crypto.randomBytes(16).toString("hex");
+    const doc = { _id: "master_password", passwordHash: sha256hex(salt + ":" + pw), salt, _setBy: actor._id, _setAt: Date.now() };
+    await db.collection("secrets").replaceOne({ _id: "master_password" }, doc, { upsert: true });
+    console.warn("MASTER PASSWORD set by '" + actor._id + "'");
+    res.json({ ok: true, set: true });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 // ── PER-RECORD READS ───────────────────────────────────────────────────────────
 // Sensitive collections are filtered on the server by the viewer's agency
 // membership and clearance — the same rules the UI used to apply in the browser,
@@ -123,8 +180,8 @@ function canSeeLFP(a) { return !!a && (isMinOrEmperor(a) || !!lfpRoleOf(a)); }
 app.get("/api/collection/:name", async (req, res) => {
   try {
     const name = req.params.name;
-    // Never hand out the credential store or live tokens through this endpoint.
-    if (name === "accounts" || name === "sessions") return res.status(403).json({ ok: false, error: "Forbidden" });
+    // Never hand out the credential store, live tokens, or secrets through this endpoint.
+    if (name === "accounts" || name === "sessions" || name === "secrets") return res.status(403).json({ ok: false, error: "Forbidden" });
     const actor = await actorFromReq(req);
     const kind = PROTECTED[name];
     const all = () => db.collection(name).find({}).toArray();
@@ -152,7 +209,7 @@ app.get("/api/data", async (req, res) => {
     const actor = await actorFromReq(req);
     const out = {};
     for (const { name } of await db.listCollections().toArray()) {
-      if (name === "sessions") continue;
+      if (name === "sessions" || name === "secrets") continue;
       if (name === "accounts") {
         const accs = await db.collection("accounts").find({}).toArray();
         const map = {}; accs.forEach(a => { map[a.username] = sanitizeAccount(a); });
@@ -303,6 +360,8 @@ function recordId(collection, record) {
 }
 async function writeRule(collection, actor, record) {
   if (!actor) return "Not authenticated";
+  // The master-password store is written only through /api/master-password (Emperor).
+  if (collection === "secrets") return "Forbidden";
   if (collection === "accounts") return await authorizeAccountWrite(actor, record);
   if (collection === "mi_lss_ops" || collection === "mi_lss_docs") {
     if (!canSeeLSS(actor)) return "Not authorised (LSS)";
@@ -314,6 +373,7 @@ async function writeRule(collection, actor, record) {
 }
 async function deleteRule(collection, actor) {
   if (!actor) return "Not authenticated";
+  if (collection === "secrets") return "Forbidden";
   if (collection === "accounts") return (actor.role === "emperor" || actor.role === "minister") ? null : "Only the Interior Ministry may delete accounts";
   if (collection === "mi_lss_ops" || collection === "mi_lss_docs") return canSeeLSS(actor) ? null : "Not authorised (LSS)";
   if (collection === "mi_lfp_ops" || collection === "mi_arrests") return canSeeLFP(actor) ? null : "Not authorised (LFP)";
@@ -363,7 +423,7 @@ app.post("/api/delete", async (req, res) => {
 // classified records are refused here and must go through /api/write, which
 // enforces the per-record rules. Classification mirrors how the data was
 // imported, so writes round-trip with /api/data.
-const NON_KV = (key) => key === "mi_accounts" || key.indexOf("mi_acc_") === 0 || !!PROTECTED[key];
+const NON_KV = (key) => key === "mi_accounts" || key === "secrets" || key.indexOf("mi_acc_") === 0 || !!PROTECTED[key];
 async function classifyKey(key, value) {
   if (SINGLETON_KEYS.has(key)) return "singleton";
   if (await db.collection("singletons").findOne({ _id: key }, { projection: { _id: 1 } })) return "singleton";
