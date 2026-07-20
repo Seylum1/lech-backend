@@ -7,6 +7,7 @@
 
 const express = require("express");
 const cors = require("cors");
+const crypto = require("crypto");
 const { MongoClient } = require("mongodb");
 
 const app = express();
@@ -34,6 +35,52 @@ app.get("/", (req, res) => res.type("text").send("Lech backend is running. Try /
 app.get("/health", async (req, res) => {
   try { await db.command({ ping: 1 }); res.json({ ok: true, db: "connected" }); }
   catch (e) { res.status(500).json({ ok: false, db: "error", error: e.message }); }
+});
+
+// ── LOGIN & SESSIONS ───────────────────────────────────────────────────────────
+// Verifies against the hashes carried over from the old system (salted or legacy
+// unsalted SHA-256), so everyone's existing password keeps working. Issues a
+// random session token stored in Mongo with a 12-hour life.
+const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+function sha256hex(s) { return crypto.createHash("sha256").update(String(s), "utf8").digest("hex"); }
+function verifyPassword(acc, pw) {
+  if (!acc || !acc.passwordHash) return false;
+  if (acc.salt) return acc.passwordHash === sha256hex(acc.salt + ":" + pw);
+  return acc.passwordHash === sha256hex(pw);
+}
+function sanitizeAccount(a) { if (!a) return a; const { passwordHash, salt, ...rest } = a; return rest; }
+
+async function actorFromReq(req) {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : (req.query.token || (req.body && req.body.token) || "");
+  if (!token) return null;
+  const s = await db.collection("sessions").findOne({ _id: token });
+  if (!s || !s.exp || s.exp < Date.now()) { if (s) await db.collection("sessions").deleteOne({ _id: token }); return null; }
+  return await db.collection("accounts").findOne({ _id: s.username });
+}
+
+app.post("/api/login", async (req, res) => {
+  try {
+    const u = String((req.body && req.body.username) || "").trim().toLowerCase();
+    const acc = await db.collection("accounts").findOne({ _id: u });
+    if (!acc || !verifyPassword(acc, String((req.body && req.body.password) || "")))
+      return res.status(401).json({ ok: false, error: "ACCESS DENIED" });
+    const token = crypto.randomUUID();
+    await db.collection("sessions").insertOne({ _id: token, username: acc._id, exp: Date.now() + SESSION_TTL_MS });
+    res.json({ ok: true, token, account: sanitizeAccount(acc) });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/logout", async (req, res) => {
+  const t = (req.body && req.body.token) || "";
+  if (t) await db.collection("sessions").deleteOne({ _id: t });
+  res.json({ ok: true });
+});
+
+app.get("/api/me", async (req, res) => {
+  const acc = await actorFromReq(req);
+  if (!acc) return res.status(401).json({ ok: false, error: "Not authenticated" });
+  res.json({ ok: true, account: sanitizeAccount(acc) });
 });
 
 // ── ONE-TIME DATA IMPORT ───────────────────────────────────────────────────────
