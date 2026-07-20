@@ -424,6 +424,19 @@ app.post("/api/unset", async (req, res) => {
     const { key } = req.body || {};
     if (!key) return res.status(400).json({ ok: false, error: "Missing key" });
     if (NON_KV(key)) return res.status(403).json({ ok: false, error: "Use /api/delete" });
+    // Redacting an office communiqué: the office that issued it may withdraw it,
+    // which removes it outright. Verified against the live officials register,
+    // the same way issuing one is.
+    if (key.indexOf("press_article_") === 0) {
+      const cur = await db.collection("singletons").findOne({ _id: key });
+      const art = cur && cur.value;
+      if (art && art.pressRelease) {
+        if (!(await holdsNamedOffice(actor, art.office)) && !hasPress(actor))
+          return res.status(403).json({ ok: false, error: "You do not hold the office this communiqué was issued under" });
+        await db.collection("singletons").deleteOne({ _id: key });
+        return res.json({ ok: true });
+      }
+    }
     const err = await authorizeKeyWrite(actor, key);
     if (err) return res.status(403).json({ ok: false, error: err });
     if (key.indexOf("bk_bill_") === 0) { await db.collection("bk_bills").deleteOne({ _id: key }); return res.json({ ok: true }); }
