@@ -134,6 +134,10 @@ app.get("/api/data", async (req, res) => {
         (await db.collection("singletons").find({}).toArray()).forEach(d => { out[d._id] = d.value; });
         continue;
       }
+      if (name === "bk_bills") {   // bills were grouped on import; restore their original bk_bill_* keys
+        (await db.collection("bk_bills").find({}).toArray()).forEach(d => { out[d._id] = d; });
+        continue;
+      }
       let docs = await db.collection(name).find({}).toArray();
       const kind = PROTECTED[name];
       if (kind === "lss") { if (!canSeeLSS(actor)) docs = []; else { const cl = actor.clearance || 0; docs = docs.filter(d => (d.clearance || 0) <= cl); } }
@@ -215,6 +219,57 @@ app.post("/api/delete", async (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
+// ── GENERIC KEY WRITES ─────────────────────────────────────────────────────────
+// Preserves the old sset(key, value) / sdel(key) shape so a page can move over by
+// swapping only its data layer. Any signed-in account may write these (parity
+// with the old hardened backend — anonymous writes are refused); accounts and
+// classified records are refused here and must go through /api/write, which
+// enforces the per-record rules. Classification mirrors how the data was
+// imported, so writes round-trip with /api/data.
+const NON_KV = (key) => key === "mi_accounts" || key.indexOf("mi_acc_") === 0 || !!PROTECTED[key];
+async function classifyKey(key, value) {
+  if (SINGLETON_KEYS.has(key)) return "singleton";
+  if (await db.collection("singletons").findOne({ _id: key }, { projection: { _id: 1 } })) return "singleton";
+  const cn = collName(key);
+  if ((await db.listCollections({ name: cn }).toArray()).length) return "collection";
+  const vals = value && typeof value === "object" && !Array.isArray(value) ? Object.values(value) : null;
+  if (vals && vals.length > 0 && vals.every(v => v && typeof v === "object" && !Array.isArray(v))) return "collection";
+  return "singleton";
+}
+
+app.post("/api/set", async (req, res) => {
+  try {
+    const actor = await actorFromReq(req);
+    if (!actor) return res.status(401).json({ ok: false, error: "Not authenticated" });
+    const { key, value } = req.body || {};
+    if (!key) return res.status(400).json({ ok: false, error: "Missing key" });
+    if (NON_KV(key)) return res.status(403).json({ ok: false, error: "Use /api/write for accounts and classified records" });
+    if (await classifyKey(key, value) === "collection") {
+      const cn = collName(key);
+      const docs = Object.entries(value || {}).map(([id, rec]) => ({ ...rec, _id: id }));
+      await db.collection(cn).deleteMany({});
+      if (docs.length) await db.collection(cn).insertMany(docs, { ordered: false });
+    } else {
+      await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value }, { upsert: true });
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/unset", async (req, res) => {
+  try {
+    const actor = await actorFromReq(req);
+    if (!actor) return res.status(401).json({ ok: false, error: "Not authenticated" });
+    const { key } = req.body || {};
+    if (!key) return res.status(400).json({ ok: false, error: "Missing key" });
+    if (NON_KV(key)) return res.status(403).json({ ok: false, error: "Use /api/delete" });
+    await db.collection("singletons").deleteOne({ _id: key });
+    const cn = collName(key);
+    if ((await db.listCollections({ name: cn }).toArray()).length) await db.collection(cn).drop().catch(() => {});
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 // ── ONE-TIME DATA IMPORT ───────────────────────────────────────────────────────
 // Copies everything from both Sheets backends into MongoDB. Safe to re-run (it
 // replaces the Mongo copy each time). Reads only — your Sheets are untouched.
@@ -227,6 +282,10 @@ async function fetchAll(url) {
   return (d && d.success) ? (d.data || {}) : {};
 }
 function collName(key) { return String(key).replace(/[^a-zA-Z0-9_]/g, "_"); }
+// Settings objects whose values happen to all be objects, so the "looks like a
+// record map" heuristic would wrongly explode them into a collection. These are
+// always stored as a single document.
+const SINGLETON_KEYS = new Set(["bk_orgchart"]);
 async function replaceCollection(name, docs) {
   const c = db.collection(name);
   await c.deleteMany({});
@@ -262,11 +321,16 @@ app.get("/admin/import", async (req, res) => {
         if (key.startsWith("bk_bill_")) { if (val && typeof val === "object") bills.push({ _id: key, ...val }); continue; }
 
         // An id-keyed map becomes a collection; anything else is a single setting.
-        if (val && typeof val === "object" && !Array.isArray(val) && Object.values(val).every(v => v && typeof v === "object")) {
+        const looksLikeCollection = val && typeof val === "object" && !Array.isArray(val)
+          && Object.values(val).length > 0 && Object.values(val).every(v => v && typeof v === "object" && !Array.isArray(v));
+        if (looksLikeCollection && !SINGLETON_KEYS.has(key)) {
           const docs = Object.entries(val).map(([id, rec]) => ({ _id: id, ...rec }));
           summary[collName(key)] = await replaceCollection(collName(key), docs);
         } else {
           await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value: val }, { upsert: true });
+          // Drop a stale same-named collection left by an earlier misclassified import.
+          const cn = collName(key);
+          if ((await db.listCollections({ name: cn }).toArray()).length) await db.collection(cn).drop().catch(() => {});
           summary["singleton:" + key] = 1;
         }
       }
