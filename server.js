@@ -108,15 +108,110 @@ app.get("/api/collection/:name", async (req, res) => {
       const cl = actor.clearance || 0;
       return res.json({ ok: true, data: (await all()).filter(d => (d.clearance || 0) <= cl) });
     }
-    if (kind === "lfp") {
-      if (!canSeeLFP(actor)) return res.json({ ok: true, data: [] });
-      return res.json({ ok: true, data: await all() });
-    }
-    if (kind === "arrests") {
+    if (kind === "lfp" || kind === "arrests") {
       if (!canSeeLFP(actor)) return res.json({ ok: true, data: [] });
       return res.json({ ok: true, data: await all() });   // MDT-seal refinement pending
     }
     return res.json({ ok: true, data: [] });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// A single filtered snapshot of everything the viewer may see, in the same
+// {key:{id:record}} shape the pages already expect — so the page code barely
+// changes, but the intel is filtered before it ever leaves the server.
+app.get("/api/data", async (req, res) => {
+  try {
+    const actor = await actorFromReq(req);
+    const out = {};
+    for (const { name } of await db.listCollections().toArray()) {
+      if (name === "sessions") continue;
+      if (name === "accounts") {
+        const accs = await db.collection("accounts").find({}).toArray();
+        const map = {}; accs.forEach(a => { map[a.username] = sanitizeAccount(a); });
+        out["mi_accounts"] = map; continue;
+      }
+      if (name === "singletons") {
+        (await db.collection("singletons").find({}).toArray()).forEach(d => { out[d._id] = d.value; });
+        continue;
+      }
+      let docs = await db.collection(name).find({}).toArray();
+      const kind = PROTECTED[name];
+      if (kind === "lss") { if (!canSeeLSS(actor)) docs = []; else { const cl = actor.clearance || 0; docs = docs.filter(d => (d.clearance || 0) <= cl); } }
+      else if (kind === "lfp" || kind === "arrests") { if (!canSeeLFP(actor)) docs = []; }
+      const map = {}; docs.forEach(d => { map[d._id] = d; });
+      out[name] = map;
+    }
+    res.json({ ok: true, data: out });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── PER-RECORD WRITES ──────────────────────────────────────────────────────────
+// The server owns each collection and authorises one record at a time, so a
+// filtered reader can never wipe records they weren't allowed to see.
+function isOfficial(a) { return !!a && (a.role === "emperor" || a.role === "minister" || a.mowRole === "minister"); }
+function roleRank(r) { return r === "emperor" ? 2 : r === "minister" ? 1 : 0; }
+function escalationError(actor, acc) {
+  const rank = roleRank(acc && acc.role);
+  if (rank === 2 && !(actor && actor.role === "emperor")) return "Only the Emperor may grant the Imperial role";
+  if (rank === 1 && !(actor && (actor.role === "emperor" || actor.role === "minister"))) return "Only the Emperor or Interior Minister may appoint a Minister";
+  return null;
+}
+function recordId(collection, record) {
+  if (collection === "accounts") return String(record.username || record._id || "").toLowerCase();
+  return String(record.id || record._id || "");
+}
+function writeRule(collection, actor, record) {
+  if (!actor) return "Not authenticated";
+  if (collection === "accounts") { if (!isOfficial(actor)) return "Not authorised"; return escalationError(actor, record); }
+  if (collection === "mi_lss_ops" || collection === "mi_lss_docs") {
+    if (!canSeeLSS(actor)) return "Not authorised (LSS)";
+    if ((record.clearance || 0) > (actor.clearance || 0)) return "Cannot create above your clearance";
+    return null;
+  }
+  if (collection === "mi_lfp_ops" || collection === "mi_arrests") { if (!canSeeLFP(actor)) return "Not authorised (LFP)"; return null; }
+  return "This collection is not open for writes yet";
+}
+function deleteRule(collection, actor) {
+  if (!actor) return "Not authenticated";
+  if (collection === "accounts") return (actor.role === "emperor" || actor.role === "minister") ? null : "Only the Interior Ministry may delete accounts";
+  if (collection === "mi_lss_ops" || collection === "mi_lss_docs") return canSeeLSS(actor) ? null : "Not authorised (LSS)";
+  if (collection === "mi_lfp_ops" || collection === "mi_arrests") return canSeeLFP(actor) ? null : "Not authorised (LFP)";
+  return "This collection is not open for writes yet";
+}
+async function applyAccountSecret(record) {
+  if (record.passwordHash) return;   // client supplied a new hash (password change)
+  const existing = await db.collection("accounts").findOne({ _id: recordId("accounts", record) });
+  if (existing) {
+    if (existing.passwordHash !== undefined) record.passwordHash = existing.passwordHash;
+    if (existing.salt !== undefined) record.salt = existing.salt;
+  }
+}
+
+app.post("/api/write", async (req, res) => {
+  try {
+    const actor = await actorFromReq(req);
+    const { collection, record } = req.body || {};
+    if (!collection || !record) return res.status(400).json({ ok: false, error: "Missing collection/record" });
+    const err = writeRule(collection, actor, record);
+    if (err) return res.status(403).json({ ok: false, error: err });
+    const id = recordId(collection, record);
+    if (!id) return res.status(400).json({ ok: false, error: "Record has no id" });
+    const doc = { ...record, _id: id };
+    if (collection === "accounts") { doc.username = String(record.username || id).toLowerCase(); await applyAccountSecret(doc); }
+    await db.collection(collection).replaceOne({ _id: id }, doc, { upsert: true });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post("/api/delete", async (req, res) => {
+  try {
+    const actor = await actorFromReq(req);
+    const { collection, id } = req.body || {};
+    if (!collection || !id) return res.status(400).json({ ok: false, error: "Missing collection/id" });
+    const err = deleteRule(collection, actor);
+    if (err) return res.status(403).json({ ok: false, error: err });
+    await db.collection(collection).deleteOne({ _id: id });
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
