@@ -259,6 +259,26 @@ async function authorizeBallot(actor, key, value) {
   return null;
 }
 
+// Does this account currently hold the named executive office? Verified against
+// the live officials register — used to authorise office communiqués.
+async function holdsNamedOffice(actor, office) {
+  if (!actor || !office) return false;
+  if (actor.role === "emperor") return true;
+  const u = String(actor.username || "").toLowerCase();
+  const d = String(actor.displayName || "").toLowerCase();
+  const offDoc = await db.collection("singletons").findOne({ _id: "bk_officials" });
+  const off = offDoc ? offDoc.value : null;
+  if (!off) return false;
+  const match = (stored, bare) => {
+    stored = String(stored || "").toLowerCase();
+    if (stored) return stored === u;
+    bare = String(bare || "").toLowerCase();
+    return !!bare && bare !== "vacant" && (bare === u || bare === d);
+  };
+  if (office === "Chancellor") return match(off.chancellor_username, off.chancellor);
+  return match((off.minister_usernames || {})[office], (off.ministers || {})[office]);
+}
+
 // Account (permission) writes: the Emperor and Interior Minister manage accounts;
 // a ministry head may flip ONLY their own agency's access flags and nothing else;
 // only the Emperor grants the Imperial role, only Emperor/Interior appoint a
@@ -366,6 +386,14 @@ app.post("/api/set", async (req, res) => {
       const berr = await authorizeBallot(actor, key, req.body.value);
       if (berr) return res.status(403).json({ ok: false, error: berr });
       await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value: req.body.value, _writtenBy: actor.username, _writtenAt: Date.now() }, { upsert: true });
+      return res.json({ ok: true });
+    }
+    // An office communiqué may be published by the officeholder it names (a normal
+    // press article still needs Press authority, handled below).
+    if (key.indexOf("press_article_") === 0 && value && value.pressRelease) {
+      if (!(await holdsNamedOffice(actor, value.office)))
+        return res.status(403).json({ ok: false, error: "You do not hold the office this communiqué is issued under" });
+      await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value, _writtenBy: actor.username, _writtenAt: Date.now() }, { upsert: true });
       return res.json({ ok: true });
     }
     const err = await authorizeKeyWrite(actor, key);
