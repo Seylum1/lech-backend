@@ -1,51 +1,113 @@
 // Empire of Lech — intranet backend (MongoDB)
-// Step 1 skeleton: prove the server runs and can reach the database.
-// Logins, per-record rules, and data endpoints get added once this pipe works.
+// Step 2: prove the DB pipe (/health) + one-time data import from Sheets.
+// Logins, per-record rules, and data endpoints come next.
 //
-// The database key is NEVER written here. It is read from a private setting
-// (environment variable) named MONGODB_URI, which you set in Render — never in
-// this file, never in GitHub.
+// The database key is read from a private setting (MONGODB_URI) in Render.
+// It is NEVER written in this file or in GitHub.
 
 const express = require("express");
 const cors = require("cors");
 const { MongoClient } = require("mongodb");
 
 const app = express();
-app.use(cors());                 // tightened to your GitHub Pages origin later
-app.use(express.json({ limit: "2mb" }));
+app.use(cors());
+app.use(express.json({ limit: "8mb" }));
 
 const uri = process.env.MONGODB_URI;
 if (!uri) {
   console.error("Missing MONGODB_URI. Set it in Render's Environment settings.");
   process.exit(1);
 }
+const ADMIN_KEY = process.env.ADMIN_KEY || "";
+
+// The two existing Sheets backends (the same public URLs already in your HTML).
+const SOURCES = {
+  moi: "https://script.google.com/macros/s/AKfycbxLu8jQehAZJEvMEeCLoHc9S2C4FM8o9fQh8Pp4gMzDNwwIG0S9qLJ5-1gyGM1c_InUfQ/exec",
+  bk:  "https://script.google.com/macros/s/AKfycbz37c5Okp9c7PkXv38x2lq7Is3RifkJPee5ASb2KQfA7EJgsN0NwrigmiRr1a_G0E6d4Q/exec",
+};
 
 const client = new MongoClient(uri);
 let db = null;
 
-// Health check — open this in a browser to confirm the server is up and the
-// database is reachable. Expected: {"ok":true,"db":"connected"}.
+app.get("/", (req, res) => res.type("text").send("Lech backend is running. Try /health"));
+
 app.get("/health", async (req, res) => {
+  try { await db.command({ ping: 1 }); res.json({ ok: true, db: "connected" }); }
+  catch (e) { res.status(500).json({ ok: false, db: "error", error: e.message }); }
+});
+
+// ── ONE-TIME DATA IMPORT ───────────────────────────────────────────────────────
+// Copies everything from both Sheets backends into MongoDB. Safe to re-run (it
+// replaces the Mongo copy each time). Reads only — your Sheets are untouched.
+// Guarded by ADMIN_KEY. Run MOI in compat mode (SECURE_MODE=false) first so the
+// export still includes password hashes; flip it back to true afterwards.
+// This whole block gets removed once the migration is done.
+async function fetchAll(url) {
+  const r = await fetch(url + "?action=getall");
+  const d = await r.json();
+  return (d && d.success) ? (d.data || {}) : {};
+}
+function collName(key) { return String(key).replace(/[^a-zA-Z0-9_]/g, "_"); }
+async function replaceCollection(name, docs) {
+  const c = db.collection(name);
+  await c.deleteMany({});
+  if (docs.length) await c.insertMany(docs, { ordered: false });
+  return docs.length;
+}
+
+app.get("/admin/import", async (req, res) => {
+  if (!ADMIN_KEY || req.query.key !== ADMIN_KEY) return res.status(403).json({ error: "Forbidden" });
   try {
-    await db.command({ ping: 1 });
-    res.json({ ok: true, db: "connected" });
+    const summary = {};
+    const accounts = {};   // username(lower) -> account (deduped across both stores)
+    const bills = [];
+
+    for (const src of Object.keys(SOURCES)) {
+      const data = await fetchAll(SOURCES[src]);
+      for (const [key, rawVal] of Object.entries(data)) {
+        if (!rawVal) continue;
+        let val; try { val = JSON.parse(rawVal); } catch { val = rawVal; }
+
+        // Accounts — merge the per-row keys and the legacy blob into one set.
+        if (key.startsWith("mi_acc_")) {
+          if (val && val.username) { const u = String(val.username).toLowerCase(); if (!accounts[u]) accounts[u] = val; }
+          continue;
+        }
+        if (key === "mi_accounts") {
+          if (val && typeof val === "object") for (const a of Object.values(val)) {
+            if (a && a.username) { const u = String(a.username).toLowerCase(); if (!accounts[u]) accounts[u] = a; }
+          }
+          continue;
+        }
+        // Bundeskongress bills — one key each — gather into a bills collection.
+        if (key.startsWith("bk_bill_")) { if (val && typeof val === "object") bills.push({ _id: key, ...val }); continue; }
+
+        // An id-keyed map becomes a collection; anything else is a single setting.
+        if (val && typeof val === "object" && !Array.isArray(val) && Object.values(val).every(v => v && typeof v === "object")) {
+          const docs = Object.entries(val).map(([id, rec]) => ({ _id: id, ...rec }));
+          summary[collName(key)] = await replaceCollection(collName(key), docs);
+        } else {
+          await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value: val }, { upsert: true });
+          summary["singleton:" + key] = 1;
+        }
+      }
+    }
+
+    const accDocs = Object.values(accounts).map(a => ({ _id: String(a.username).toLowerCase(), ...a }));
+    summary["accounts"] = await replaceCollection("accounts", accDocs);
+    if (bills.length) { summary["bk_bills"] = await replaceCollection("bk_bills", bills); }
+
+    res.json({ ok: true, summary });
   } catch (e) {
-    res.status(500).json({ ok: false, db: "error", error: e.message });
+    res.status(500).json({ ok: false, error: e.message });
   }
 });
 
-// A friendly root page so hitting the base URL doesn't look broken.
-app.get("/", (req, res) => res.type("text").send("Lech backend is running. Try /health"));
-
 async function start() {
   await client.connect();
-  db = client.db("lech");        // the database name inside your cluster
+  db = client.db("lech");
   console.log("Connected to MongoDB.");
-  const port = process.env.PORT || 3000;   // Render provides PORT automatically
+  const port = process.env.PORT || 3000;
   app.listen(port, () => console.log("Server listening on port " + port));
 }
-
-start().catch((e) => {
-  console.error("Startup failed:", e.message);
-  process.exit(1);
-});
+start().catch((e) => { console.error("Startup failed:", e.message); process.exit(1); });
