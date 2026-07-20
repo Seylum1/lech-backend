@@ -1,0 +1,18 @@
+{
+  "name": "lech-backend",
+  "version": "1.0.0",
+  "description": "Empire of Lech intranet backend (MongoDB).",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "mongodb": "^6.8.0"
+  }
+}
