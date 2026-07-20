@@ -11,7 +11,12 @@ const crypto = require("crypto");
 const { MongoClient } = require("mongodb");
 
 const app = express();
-app.use(cors());
+app.set("trust proxy", true);   // Render sits behind a proxy; needed for real client IPs
+// Lock browser access to your site once its final URL is known: set ALLOWED_ORIGIN
+// in Render (e.g. https://you.github.io, comma-separated for several). Writes need
+// a token regardless, so this is defence-in-depth. Defaults to open if unset.
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
+app.use(cors({ origin: ALLOWED_ORIGIN === "*" ? true : ALLOWED_ORIGIN.split(",").map(s => s.trim()) }));
 app.use(express.json({ limit: "8mb" }));
 
 const uri = process.env.MONGODB_URI;
@@ -59,12 +64,33 @@ async function actorFromReq(req) {
   return await db.collection("accounts").findOne({ _id: s.username });
 }
 
+// Brute-force throttle: too many wrong guesses from one IP+username locks that
+// pair out for a cool-down. In-memory (resets on redeploy), which is plenty for
+// slowing an online guessing attack.
+const LOGIN_FAILS = new Map();
+const MAX_FAILS = 8, FAIL_WINDOW_MS = 15 * 60 * 1000, LOCK_MS = 15 * 60 * 1000;
+function throttleKey(req, u) { return (String(req.headers["x-forwarded-for"] || req.ip || "").split(",")[0].trim()) + "|" + u; }
+function lockedFor(k) { const e = LOGIN_FAILS.get(k); return (e && e.lockUntil > Date.now()) ? Math.ceil((e.lockUntil - Date.now()) / 1000) : 0; }
+function noteFail(k) {
+  const now = Date.now(); let e = LOGIN_FAILS.get(k);
+  if (!e || now - e.first > FAIL_WINDOW_MS) e = { count: 0, first: now, lockUntil: 0 };
+  e.count++; if (e.count >= MAX_FAILS) { e.lockUntil = now + LOCK_MS; e.count = 0; e.first = now; }
+  LOGIN_FAILS.set(k, e);
+  if (LOGIN_FAILS.size > 5000) for (const [kk, vv] of LOGIN_FAILS) { if ((vv.lockUntil || vv.first) < now - FAIL_WINDOW_MS) LOGIN_FAILS.delete(kk); }
+}
+
 app.post("/api/login", async (req, res) => {
   try {
     const u = String((req.body && req.body.username) || "").trim().toLowerCase();
+    const k = throttleKey(req, u);
+    const wait = lockedFor(k);
+    if (wait) return res.status(429).json({ ok: false, error: "Too many attempts. Try again in about " + Math.ceil(wait / 60) + " minute(s)." });
     const acc = await db.collection("accounts").findOne({ _id: u });
-    if (!acc || !verifyPassword(acc, String((req.body && req.body.password) || "")))
+    if (!acc || !verifyPassword(acc, String((req.body && req.body.password) || ""))) {
+      noteFail(k);
       return res.status(401).json({ ok: false, error: "ACCESS DENIED" });
+    }
+    LOGIN_FAILS.delete(k);
     const token = crypto.randomUUID();
     await db.collection("sessions").insertOne({ _id: token, username: acc._id, exp: Date.now() + SESSION_TTL_MS });
     res.json({ ok: true, token, account: sanitizeAccount(acc) });
@@ -97,6 +123,8 @@ function canSeeLFP(a) { return !!a && (isMinOrEmperor(a) || !!lfpRoleOf(a)); }
 app.get("/api/collection/:name", async (req, res) => {
   try {
     const name = req.params.name;
+    // Never hand out the credential store or live tokens through this endpoint.
+    if (name === "accounts" || name === "sessions") return res.status(403).json({ ok: false, error: "Forbidden" });
     const actor = await actorFromReq(req);
     const kind = PROTECTED[name];
     const all = () => db.collection(name).find({}).toArray();
@@ -152,35 +180,107 @@ app.get("/api/data", async (req, res) => {
 // ── PER-RECORD WRITES ──────────────────────────────────────────────────────────
 // The server owns each collection and authorises one record at a time, so a
 // filtered reader can never wipe records they weren't allowed to see.
-function isOfficial(a) { return !!a && (a.role === "emperor" || a.role === "minister" || a.mowRole === "minister"); }
 function roleRank(r) { return r === "emperor" ? 2 : r === "minister" ? 1 : 0; }
-function escalationError(actor, acc) {
-  const rank = roleRank(acc && acc.role);
-  if (rank === 2 && !(actor && actor.role === "emperor")) return "Only the Emperor may grant the Imperial role";
-  if (rank === 1 && !(actor && (actor.role === "emperor" || actor.role === "minister"))) return "Only the Emperor or Interior Minister may appoint a Minister";
-  return null;
+function hasFinance(a) { return a.role === "emperor" || a.mofRole === "treasurer" || a.mofRole === "minister"; }
+function hasWar(a) { return a.role === "emperor" || a.mowRole === "commander" || a.mowRole === "minister"; }
+function hasMFA(a) { return a.role === "emperor" || !!a.mfaAccess; }
+function hasJudiciary(a) { return a.role === "emperor" || a.ijAccess === "judge" || a.ijAccess === "president"; }
+function hasPress(a) { return a.role === "emperor" || !!a.pressRole || !!a.pressAccess; }
+function hasIMC(a) { return a.role === "emperor" || !!a.imcRole; }
+function isReturningOfficer(a) { return a.role === "emperor" || a.role === "minister" || (a.clearance || 0) >= 3; }
+
+// Governance standing: a sitting member, a Bundesherr, or an officeholder —
+// verified against the live rosters, never a client's say-so.
+async function hasBKStanding(actor) {
+  if (actor.role === "emperor") return true;
+  const u = String(actor.username || "").toLowerCase();
+  const rosterHit = (docs) => docs.some(m => String(m.username || m.name || "").toLowerCase() === u);
+  if (rosterHit(await db.collection("bk_members").find({}).toArray())) return true;
+  if (rosterHit(await db.collection("bk_bh").find({}).toArray())) return true;
+  const offDoc = await db.collection("singletons").findOne({ _id: "bk_officials" });
+  const off = offDoc ? offDoc.value : null;
+  if (off) {
+    const names = [off.chancellor_username, off.president_bt_username, off.president_bh_username]
+      .concat(Object.values(off.minister_usernames || {}));
+    if (names.some(n => n && String(n).toLowerCase() === u)) return true;
+  }
+  return false;
+}
+
+// Which authority a data key belongs to. Keys where end-users legitimately create
+// their own records are "auth" (any signed-in account). Unknown domains default
+// to "auth" so nothing silently breaks — tighten as each is reviewed.
+const USER_WRITABLE = new Set(["mof_businesses", "mof_expenditures", "el_voter_ids"]);
+function keyDomain(key) {
+  if (USER_WRITABLE.has(key) || key.startsWith("el_ballot_")) return "auth";
+  if (key.startsWith("mof_")) return "finance";
+  if (key.startsWith("mow_")) return "war";
+  if (key.startsWith("mfa_")) return "mfa";
+  if (key.startsWith("ij_")) return "judiciary";
+  if (key.startsWith("ih_")) return "household";      // Imperial Household → Emperor only
+  if (key.startsWith("press_")) return "press";
+  if (key.startsWith("imc_")) return "imc";
+  if (key.startsWith("el_")) return "elections";
+  if (key.startsWith("bk_") || key.startsWith("bh")) return "governance";
+  return "auth";                                       // eco_/exchange_/lbs_/vx_ … login required; review later
+}
+async function authorizeKeyWrite(actor, key) {
+  if (!actor) return "Not authenticated";
+  if (actor.role === "emperor") return null;
+  switch (keyDomain(key)) {
+    case "auth": return null;
+    case "finance": return hasFinance(actor) ? null : "Requires Ministry of Finance authority";
+    case "war": return hasWar(actor) ? null : "Requires Ministry of War authority";
+    case "mfa": return hasMFA(actor) ? null : "Requires Foreign Affairs authority";
+    case "judiciary": return hasJudiciary(actor) ? null : "Requires Judiciary authority";
+    case "household": return "Reserved to the Imperial Household";
+    case "press": return hasPress(actor) ? null : "Requires Imperial Press authority";
+    case "imc": return hasIMC(actor) ? null : "Requires Maritime Commission authority";
+    case "elections": return isReturningOfficer(actor) ? null : "Requires Returning Officer authority";
+    case "governance": return (await hasBKStanding(actor)) ? null : "Requires a seat or office in the Bundeskongress";
+    default: return null;
+  }
+}
+
+// Account (permission) writes: the Emperor and Interior Minister manage accounts;
+// a ministry head may flip ONLY their own agency's access flags and nothing else;
+// only the Emperor grants the Imperial role, only Emperor/Interior appoint a
+// system Minister. This is what stops sideways privilege-escalation.
+async function authorizeAccountWrite(actor, incoming) {
+  if (!actor) return "Not authenticated";
+  const isEmperor = actor.role === "emperor";
+  const isInterior = isEmperor || actor.role === "minister";
+  if (roleRank(incoming.role) === 2 && !isEmperor) return "Only the Emperor may grant the Imperial role";
+  if (roleRank(incoming.role) === 1 && !isInterior) return "Only the Emperor or Interior Minister may appoint a Minister";
+  if (isInterior) return null;
+  const existing = await db.collection("accounts").findOne({ _id: recordId("accounts", incoming) }) || {};
+  const IGNORE = new Set(["_id", "_writtenBy", "_writtenAt", "passwordHash", "salt", "username", "displayName", "notes", "stateOfResidency"]);
+  const changed = Object.keys({ ...existing, ...incoming })
+    .filter(f => !IGNORE.has(f) && JSON.stringify(incoming[f]) !== JSON.stringify(existing[f]));
+  if (actor.mowRole === "minister" && changed.every(f => ["mowAccess", "mowRole", "canSetAlert"].includes(f))) return null;
+  return "You are not permitted to change this account's permissions";
 }
 function recordId(collection, record) {
   if (collection === "accounts") return String(record.username || record._id || "").toLowerCase();
   return String(record.id || record._id || "");
 }
-function writeRule(collection, actor, record) {
+async function writeRule(collection, actor, record) {
   if (!actor) return "Not authenticated";
-  if (collection === "accounts") { if (!isOfficial(actor)) return "Not authorised"; return escalationError(actor, record); }
+  if (collection === "accounts") return await authorizeAccountWrite(actor, record);
   if (collection === "mi_lss_ops" || collection === "mi_lss_docs") {
     if (!canSeeLSS(actor)) return "Not authorised (LSS)";
     if ((record.clearance || 0) > (actor.clearance || 0)) return "Cannot create above your clearance";
     return null;
   }
   if (collection === "mi_lfp_ops" || collection === "mi_arrests") { if (!canSeeLFP(actor)) return "Not authorised (LFP)"; return null; }
-  return "This collection is not open for writes yet";
+  return await authorizeKeyWrite(actor, collection);
 }
-function deleteRule(collection, actor) {
+async function deleteRule(collection, actor) {
   if (!actor) return "Not authenticated";
   if (collection === "accounts") return (actor.role === "emperor" || actor.role === "minister") ? null : "Only the Interior Ministry may delete accounts";
   if (collection === "mi_lss_ops" || collection === "mi_lss_docs") return canSeeLSS(actor) ? null : "Not authorised (LSS)";
   if (collection === "mi_lfp_ops" || collection === "mi_arrests") return canSeeLFP(actor) ? null : "Not authorised (LFP)";
-  return "This collection is not open for writes yet";
+  return await authorizeKeyWrite(actor, collection);
 }
 async function applyAccountSecret(record) {
   if (record.passwordHash) return;   // client supplied a new hash (password change)
@@ -196,11 +296,11 @@ app.post("/api/write", async (req, res) => {
     const actor = await actorFromReq(req);
     const { collection, record } = req.body || {};
     if (!collection || !record) return res.status(400).json({ ok: false, error: "Missing collection/record" });
-    const err = writeRule(collection, actor, record);
+    const err = await writeRule(collection, actor, record);
     if (err) return res.status(403).json({ ok: false, error: err });
     const id = recordId(collection, record);
     if (!id) return res.status(400).json({ ok: false, error: "Record has no id" });
-    const doc = { ...record, _id: id };
+    const doc = { ...record, _id: id, _writtenBy: actor.username, _writtenAt: Date.now() };
     if (collection === "accounts") { doc.username = String(record.username || id).toLowerCase(); await applyAccountSecret(doc); }
     await db.collection(collection).replaceOne({ _id: id }, doc, { upsert: true });
     res.json({ ok: true });
@@ -212,7 +312,7 @@ app.post("/api/delete", async (req, res) => {
     const actor = await actorFromReq(req);
     const { collection, id } = req.body || {};
     if (!collection || !id) return res.status(400).json({ ok: false, error: "Missing collection/id" });
-    const err = deleteRule(collection, actor);
+    const err = await deleteRule(collection, actor);
     if (err) return res.status(403).json({ ok: false, error: err });
     await db.collection(collection).deleteOne({ _id: id });
     res.json({ ok: true });
@@ -244,19 +344,22 @@ app.post("/api/set", async (req, res) => {
     const { key, value } = req.body || {};
     if (!key) return res.status(400).json({ ok: false, error: "Missing key" });
     if (NON_KV(key)) return res.status(403).json({ ok: false, error: "Use /api/write for accounts and classified records" });
+    const err = await authorizeKeyWrite(actor, key);
+    if (err) return res.status(403).json({ ok: false, error: err });
+    const by = actor.username, at = Date.now();
     // Bills were grouped into bk_bills on import; keep new ones there too so a
     // new bk_bill_* lands alongside the rest instead of in singletons.
     if (key.indexOf("bk_bill_") === 0) {
-      await db.collection("bk_bills").replaceOne({ _id: key }, { ...value, _id: key }, { upsert: true });
+      await db.collection("bk_bills").replaceOne({ _id: key }, { ...value, _id: key, _writtenBy: by, _writtenAt: at }, { upsert: true });
       return res.json({ ok: true });
     }
     if (await classifyKey(key, value) === "collection") {
       const cn = collName(key);
-      const docs = Object.entries(value || {}).map(([id, rec]) => ({ ...rec, _id: id }));
+      const docs = Object.entries(value || {}).map(([id, rec]) => ({ ...rec, _id: id, _writtenBy: by, _writtenAt: at }));
       await db.collection(cn).deleteMany({});
       if (docs.length) await db.collection(cn).insertMany(docs, { ordered: false });
     } else {
-      await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value }, { upsert: true });
+      await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value, _writtenBy: by, _writtenAt: at }, { upsert: true });
     }
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
@@ -269,6 +372,8 @@ app.post("/api/unset", async (req, res) => {
     const { key } = req.body || {};
     if (!key) return res.status(400).json({ ok: false, error: "Missing key" });
     if (NON_KV(key)) return res.status(403).json({ ok: false, error: "Use /api/delete" });
+    const err = await authorizeKeyWrite(actor, key);
+    if (err) return res.status(403).json({ ok: false, error: err });
     if (key.indexOf("bk_bill_") === 0) { await db.collection("bk_bills").deleteOne({ _id: key }); return res.json({ ok: true }); }
     await db.collection("singletons").deleteOne({ _id: key });
     const cn = collName(key);
@@ -301,6 +406,10 @@ async function replaceCollection(name, docs) {
 }
 
 app.get("/admin/import", async (req, res) => {
+  // Turn this off for good once your final re-import is done: set IMPORT_ENABLED=false
+  // in Render (or delete this endpoint). It rebuilds collections, so it must not
+  // stay reachable in production.
+  if (process.env.IMPORT_ENABLED === "false") return res.status(404).json({ error: "Not found" });
   if (!ADMIN_KEY || req.query.key !== ADMIN_KEY) return res.status(403).json({ error: "Forbidden" });
   try {
     const summary = {};
