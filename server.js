@@ -212,7 +212,7 @@ async function hasBKStanding(actor) {
 // to "auth" so nothing silently breaks — tighten as each is reviewed.
 const USER_WRITABLE = new Set(["mof_businesses", "mof_expenditures", "el_voter_ids"]);
 function keyDomain(key) {
-  if (USER_WRITABLE.has(key) || key.startsWith("el_ballot_")) return "auth";
+  if (USER_WRITABLE.has(key)) return "auth";     // el_ballot_* is handled specially, not here
   if (key.startsWith("mof_")) return "finance";
   if (key.startsWith("mow_")) return "war";
   if (key.startsWith("mfa_")) return "mfa";
@@ -240,6 +240,23 @@ async function authorizeKeyWrite(actor, key) {
     case "governance": return (await hasBKStanding(actor)) ? null : "Requires a seat or office in the Bundeskongress";
     default: return null;
   }
+}
+
+// A ballot may be cast only for the citizen record the voter's own account owns,
+// only once, and never changed. Deleting ballots is a Returning Officer act,
+// handled by the normal "elections" domain rule.
+async function authorizeBallot(actor, key, value) {
+  if (!actor) return "Not authenticated";
+  const citizenId = value && value.citizenId, elId = value && value.elId;
+  if (!citizenId || !elId) return "Malformed ballot";
+  if ("el_ballot_" + elId + "_" + citizenId !== key) return "Ballot does not match its key";
+  const cit = await db.collection("mfa_citizens").findOne({ $or: [{ _id: citizenId }, { id: citizenId }] });
+  if (!cit) return "No citizen record for this ballot";
+  if (String(cit.username || "").toLowerCase() !== String(actor.username || "").toLowerCase())
+    return "You may only cast your own ballot";
+  if (await db.collection("singletons").findOne({ _id: key }, { projection: { _id: 1 } }))
+    return "A ballot has already been cast and cannot be changed";
+  return null;
 }
 
 // Account (permission) writes: the Emperor and Interior Minister manage accounts;
@@ -344,6 +361,13 @@ app.post("/api/set", async (req, res) => {
     const { key, value } = req.body || {};
     if (!key) return res.status(400).json({ ok: false, error: "Missing key" });
     if (NON_KV(key)) return res.status(403).json({ ok: false, error: "Use /api/write for accounts and classified records" });
+    // Casting a ballot has its own ownership + one-vote rule.
+    if (key.indexOf("el_ballot_") === 0) {
+      const berr = await authorizeBallot(actor, key, req.body.value);
+      if (berr) return res.status(403).json({ ok: false, error: berr });
+      await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value: req.body.value, _writtenBy: actor.username, _writtenAt: Date.now() }, { upsert: true });
+      return res.json({ ok: true });
+    }
     const err = await authorizeKeyWrite(actor, key);
     if (err) return res.status(403).json({ ok: false, error: err });
     const by = actor.username, at = Date.now();
