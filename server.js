@@ -148,7 +148,6 @@ app.post("/api/register", async (req, res) => {
     const raw = String((req.body && req.body.username) || "").trim();
     const passwordHash = String((req.body && req.body.passwordHash) || "");
     const displayName = String((req.body && req.body.displayName) || "").trim();
-    const wantsCitizen = !!(req.body && req.body.citizen);
     if (!MC_NAME_RE.test(raw)) return res.status(400).json({ ok: false, error: "Enter a valid Minecraft username (3–16 letters, numbers or underscores)." });
     if (!/^[a-f0-9]{64}$/i.test(passwordHash)) return res.status(400).json({ ok: false, error: "A password is required." });
     const id = raw.toLowerCase();
@@ -160,28 +159,34 @@ app.post("/api/register", async (req, res) => {
       return res.status(503).json({ ok: false, error: "Couldn't reach Minecraft to verify that name. Please try again in a moment." });
     }
     const now = Date.now();
+    // A registration now makes a *neutral* account — it belongs to no nation. There
+    // is a linked Minecraft account and a name, and nothing else; each country grants
+    // its own citizenship and offices afterward. `role: "citizen"` is only Lech's
+    // baseline "no office" value and confers no citizenship of anywhere.
     const doc = {
       _id: id, username: id, displayName: displayName || mc.name, passwordHash,
-      role: "citizen", clearance: 0, ministry: "Civilian", isContractor: false,
-      stateOfResidency: "", mcUuid: mc.uuid, mcName: mc.name,
-      citizenshipStatus: "alien", pfpLocked: false, notes: "",
+      role: "citizen", mcUuid: mc.uuid, mcName: mc.name, pfpLocked: false, notes: "",
       _selfRegistered: true, _writtenBy: id, _writtenAt: now,
     };
     await db.collection("accounts").insertOne(doc);
-    // Seed a citizenship record so the register — and the citizen's own portal —
-    // shows them as a Registered Alien from the outset. The review flag is what
-    // the MOFA panel surfaces when they asked to be considered for citizenship.
-    const citId = "cit_" + crypto.randomUUID().slice(0, 12);
-    await db.collection("mfa_citizens").replaceOne({ _id: citId }, {
-      _id: citId, id: citId, username: id, name: doc.displayName,
-      status: "alien", since: "", notes: "",
-      reviewRequested: wantsCitizen, reviewRequestedAt: wantsCitizen ? now : null,
-      _writtenBy: id, _writtenAt: now,
-    }, { upsert: true });
     const token = crypto.randomUUID();
     await db.collection("sessions").insertOne({ _id: token, username: id, exp: now + SESSION_TTL_MS });
     res.json({ ok: true, token, account: sanitizeAccount(doc) });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Look a Minecraft name up without creating anything. The Interior Ministry uses
+// this to point an old account at the right Mojang account: an account made
+// before registration checked names may carry a username that is not a real
+// Minecraft account, which leaves it with a placeholder face everywhere. Returns
+// the canonical spelling so the stored override is spelt as Mojang has it.
+app.get("/api/verify-mc", async (req, res) => {
+  const raw = String(req.query.name || "").trim();
+  if (!MC_NAME_RE.test(raw)) return res.status(400).json({ ok: false, error: "Not a valid Minecraft username (3–16 letters, numbers or underscores)." });
+  const mc = await verifyMinecraftName(raw);
+  if (mc.ok) return res.json({ ok: true, name: mc.name, uuid: mc.uuid });
+  if (mc.reason === "not_found") return res.status(404).json({ ok: false, error: "No Minecraft account by that name." });
+  return res.status(503).json({ ok: false, error: "Couldn't reach Minecraft to check that name." });
 });
 
 app.post("/api/logout", async (req, res) => {
@@ -222,9 +227,11 @@ app.post("/api/profile-picture", async (req, res) => {
     if (!actor) return res.status(401).json({ ok: false, error: "Not authenticated" });
     const target = String((req.body && req.body.username) || "").trim().toLowerCase() || actor._id;
     const isSelf = target === actor._id;
-    const isInterior = actor.role === "emperor" || actor.role === "minister";
-    if (!isSelf && !isInterior) return res.status(403).json({ ok: false, error: "You may only change your own profile picture." });
-    if (isSelf && !isInterior && actor.pfpLocked) return res.status(403).json({ ok: false, error: "Your profile picture has been locked by the Ministry of the Interior." });
+    // Resetting or locking another account's picture is account possession, so it
+    // belongs to a network administrator now, not to Lech's Interior Ministry.
+    const admin = isSysAdmin(actor);
+    if (!isSelf && !admin) return res.status(403).json({ ok: false, error: "You may only change your own profile picture." });
+    if (isSelf && !admin && actor.pfpLocked) return res.status(403).json({ ok: false, error: "Your profile picture has been locked by a network administrator." });
     if (req.body && req.body.clear === true) {
       await db.collection("mi_pfp").deleteOne({ _id: target });
       return res.json({ ok: true, cleared: true });
@@ -347,6 +354,24 @@ function hasJudiciary(a) { return a.role === "emperor" || a.ijAccess === "judge"
 function hasPress(a) { return a.role === "emperor" || !!a.pressRole || !!a.pressAccess; }
 function hasIMC(a) { return a.role === "emperor" || !!a.imcRole; }
 function isReturningOfficer(a) { return a.role === "emperor" || a.role === "minister" || (a.clearance || 0) >= 3; }
+// Standing in the Republic of Vindex Nation. The two governments share accounts,
+// so Vinish office is a field on the account, granted from the Empire's Interior
+// Ministry. The Emperor appoints the President under TEA 4(1)(a) and so outranks
+// the office. Anyone holding an office may write the Republic's records; the
+// stricter rules — who may put a bill on the floor, whose vote counts towards the
+// five of seven — are enforced per record below.
+const VX_OFFICES = new Set(["representative", "speaker", "cabinet", "vice_president", "president"]);
+function hasVindex(a) { return a.role === "emperor" || VX_OFFICES.has(String(a.vxRole || "")); }
+// The same idea for Wilden. Office there is conferred on Wilden's own service and
+// held on the account as wxRole. The site owner's account stands outside the
+// Constitution and can appoint the Sovereign, which is how the first one is filled.
+const WX_OFFICES = new Set(["mp", "speaker", "pm", "lord", "appointed", "justice", "chief_justice", "sovereign"]);
+function hasWilden(a) { return a.role === "emperor" || WX_OFFICES.has(String(a.wxRole || "")); }
+const WX_COMMONS = new Set(["mp", "speaker", "pm"]);
+function wxPresides(a) {
+  const r = String(a.wxRole || "");
+  return a.role === "emperor" || r === "speaker" || r === "pm" || r === "sovereign";
+}
 
 // Governance standing: a sitting member, a Bundesherr, or an officeholder —
 // verified against the live rosters, never a client's say-so.
@@ -369,7 +394,12 @@ async function hasBKStanding(actor) {
 // Which authority a data key belongs to. Keys where end-users legitimately create
 // their own records are "auth" (any signed-in account). Unknown domains default
 // to "auth" so nothing silently breaks — tighten as each is reviewed.
-const USER_WRITABLE = new Set(["mof_businesses", "mof_expenditures", "el_voter_ids"]);
+// A visa is applied for by the person themselves, so the visa registers stay open.
+// Citizenship, though, is *granted* by the government — it gates who may hold
+// office — so vx_state_citizens / wx_state_citizens are the nation's to write,
+// handled by the "vindex" / "wilden" domains below, not open self-service.
+const USER_WRITABLE = new Set(["mof_businesses", "mof_expenditures", "el_voter_ids",
+  "vx_state_visas", "wx_state_visas"]);
 function keyDomain(key) {
   if (USER_WRITABLE.has(key)) return "auth";     // el_ballot_* is handled specially, not here
   if (key.startsWith("mof_")) return "finance";
@@ -381,7 +411,9 @@ function keyDomain(key) {
   if (key.startsWith("imc_")) return "imc";
   if (key.startsWith("el_")) return "elections";
   if (key.startsWith("bk_") || key.startsWith("bh")) return "governance";
-  return "auth";                                       // eco_/exchange_/lbs_/vx_ … login required; review later
+  if (key.startsWith("vx_")) return "vindex";          // Republic of Vindex Nation
+  if (key.startsWith("wx_")) return "wilden";          // Wilden
+  return "auth";                                       // eco_/exchange_/lbs_ … login required; review later
 }
 async function authorizeKeyWrite(actor, key) {
   if (!actor) return "Not authenticated";
@@ -397,6 +429,8 @@ async function authorizeKeyWrite(actor, key) {
     case "imc": return hasIMC(actor) ? null : "Requires Maritime Commission authority";
     case "elections": return isReturningOfficer(actor) ? null : "Requires Returning Officer authority";
     case "governance": return (await hasBKStanding(actor)) ? null : "Requires a seat or office in the Bundeskongress";
+    case "vindex": return hasVindex(actor) ? null : "Requires an office in the Republic of Vindex Nation";
+    case "wilden": return hasWilden(actor) ? null : "Requires an office in Wilden";
     default: return null;
   }
 }
@@ -438,30 +472,260 @@ async function holdsNamedOffice(actor, office) {
   return match((off.minister_usernames || {})[office], (off.ministers || {})[office]);
 }
 
-// Account (permission) writes: the Emperor and Interior Minister manage accounts;
-// a ministry head may flip ONLY their own agency's access flags and nothing else;
-// only the Emperor grants the Imperial role, only Emperor/Interior appoint a
-// system Minister. This is what stops sideways privilege-escalation.
+// ── Account authority, by slice ────────────────────────────────────────────────
+// The account record is shared across the whole server, but each authority owns
+// only its own slice of it. Identity and possession — the name shown, the linked
+// Minecraft account, the picture lock, and the administrator flag itself — belong
+// to the network administrator (the owner, or anyone granted sysAdmin), who runs
+// the Vintranet admin panel. Each nation owns only its own office fields. This is
+// the reform that unbinds "who runs the server" from "who runs Lech".
+const isSysAdmin = (a) => !!a && (a.role === "emperor" || a.sysAdmin === true);
+const isLechInterior = (a) => !!a && (a.role === "emperor" || a.role === "minister");
+
+// Fields nobody edits through this path: the id, the write-stamps, and the
+// secret, which has its own endpoints (/api/register, /api/change-password).
+const ACCT_META = new Set(["_id", "_writtenBy", "_writtenAt", "passwordHash", "salt", "username"]);
+// Identity & possession — the administrator's slice.
+const ACCT_IDENTITY = new Set(["displayName", "mcName", "mcUuid", "pfpLocked", "notes"]);
+// Lech permissions — the Interior Ministry's slice.
+const ACCT_LECH = new Set(["role", "clearance", "ministry", "isContractor", "lssRole", "lfpRole",
+  "agentAssigned", "officerAssigned", "mdtRestricted", "mdtClearance", "mowRole", "mowAccess",
+  "canSetAlert", "mofRole", "mofAccess", "pressRole", "pressAccess", "ijAccess", "mfaAccess",
+  "imcRole", "stateOfResidency", "citizenshipStatus"]);
+
+// Conferring a Vinish office (vxRole). Owner may set any; the President may set any
+// but the presidency (the Emperor's to confer, TEA 4(1)(a)); the Speaker may only
+// seat Representatives (the election they run, TEA 6(1)(b)).
+function vxRoleGrant(actor, prev, next) {
+  if (actor.role === "emperor") return null;
+  const mine = String(actor.vxRole || "");
+  if (mine === "president") {
+    if (next === "president" || prev === "president") return "Only the Emperor may appoint or remove the President";
+    return null;
+  }
+  if (mine === "speaker") {
+    const ok = (v) => ["", "citizen", "representative"].includes(v);
+    return (ok(next) && ok(prev)) ? null : "The Speaker may only seat Representatives";
+  }
+  return "You are not permitted to confer a Vinish office";
+}
+// Conferring a Wildenian office (wxRole). Owner may set any; the Sovereign every
+// office but His own; the Prime Minister the Lords, Ministry and members (s23/s29);
+// the Speaker only members of the Commons (s20).
+function wxRoleGrant(actor, prev, next) {
+  if (actor.role === "emperor") return null;
+  const mine = String(actor.wxRole || "");
+  if (mine === "sovereign") {
+    if (next === "sovereign" || prev === "sovereign") return "The Sovereign's own office is not conferred here";
+    return null;
+  }
+  if (mine === "pm") {
+    const ok = (v) => ["", "citizen", "mp", "lord", "appointed"].includes(v);
+    return (ok(next) && ok(prev)) ? null : "The Prime Minister may advise only on the Lords, the Ministry and the seating of members";
+  }
+  if (mine === "speaker") {
+    const ok = (v) => ["", "citizen", "mp"].includes(v);
+    return (ok(next) && ok(prev)) ? null : "The Speaker may only seat members of the House of Commons";
+  }
+  return "You are not permitted to confer a Wildenian office";
+}
+
+// Offices that only a citizen of the nation may hold. "citizen" and "" are exempt:
+// they are not offices, only recognition or its absence. Citizenship is granted by
+// each nation's foreign ministry and is what makes a person eligible for office.
+const VX_CITIZEN_OFFICES = new Set(["representative", "speaker", "cabinet", "vice_president", "president"]);
+const WX_CITIZEN_OFFICES = new Set(["mp", "speaker", "pm", "lord", "appointed", "justice", "chief_justice"]);
+const CITIZEN_STATUS = new Set(["citizen", "naturalised"]);
+async function isCitizenOf(collection, username) {
+  const u = String(username || "").toLowerCase();
+  if (!u) return false;
+  const docs = await db.collection(collection).find({}).toArray();
+  return docs.some(c => String(c.username || "").toLowerCase() === u && CITIZEN_STATUS.has(String(c.status || "")));
+}
+
+// One changed field, with its old and new value: does this actor hold the
+// authority that owns it? Returns an error string, or null if permitted.
+function fieldAuth(actor, field, prev, next) {
+  if (ACCT_IDENTITY.has(field))
+    return isSysAdmin(actor) ? null : "Only a network administrator may change account identity";
+  if (field === "sysAdmin")
+    return actor.role === "emperor" ? null : "Only the owner may grant or revoke administrator rights";
+  if (ACCT_LECH.has(field)) {
+    if (field === "role") {
+      if (roleRank(next) === 2 || roleRank(prev) === 2)
+        return actor.role === "emperor" ? null : "Only the Emperor may grant or remove the Imperial role";
+      if (roleRank(next) === 1 || roleRank(prev) === 1)
+        return isLechInterior(actor) ? null : "Only the Emperor or Interior Minister may appoint or remove a Minister";
+      return isLechInterior(actor) ? null : "Requires Interior authority";
+    }
+    // A ministry head may flip ONLY their own agency's flags — the War Office's here.
+    if (["mowRole", "mowAccess", "canSetAlert"].includes(field) && actor.mowRole === "minister") return null;
+    return isLechInterior(actor) ? null : "Requires Interior authority to change Lech permissions";
+  }
+  if (field === "vxRole") return vxRoleGrant(actor, String(prev || ""), String(next || ""));
+  if (field === "wxRole") return wxRoleGrant(actor, String(prev || ""), String(next || ""));
+  return "You are not permitted to change this account's permissions";
+}
+
 async function authorizeAccountWrite(actor, incoming) {
   if (!actor) return "Not authenticated";
-  const isEmperor = actor.role === "emperor";
-  const isInterior = isEmperor || actor.role === "minister";
-  if (roleRank(incoming.role) === 2 && !isEmperor) return "Only the Emperor may grant the Imperial role";
-  if (roleRank(incoming.role) === 1 && !isInterior) return "Only the Emperor or Interior Minister may appoint a Minister";
-  if (isInterior) return null;
-  const existing = await db.collection("accounts").findOne({ _id: recordId("accounts", incoming) }) || {};
-  const IGNORE = new Set(["_id", "_writtenBy", "_writtenAt", "passwordHash", "salt", "username", "displayName", "notes", "stateOfResidency"]);
-  const changed = Object.keys({ ...existing, ...incoming })
-    .filter(f => !IGNORE.has(f) && JSON.stringify(incoming[f]) !== JSON.stringify(existing[f]));
-  if (actor.mowRole === "minister" && changed.every(f => ["mowAccess", "mowRole", "canSetAlert"].includes(f))) return null;
-  return "You are not permitted to change this account's permissions";
+  const existing = await db.collection("accounts").findOne({ _id: recordId("accounts", incoming) });
+  // Creating an account is an act of identity, so only an administrator may. A new
+  // account carries identity and a neutral baseline; every privilege is conferred
+  // afterward, by the authority that owns it.
+  if (!existing) {
+    if (!isSysAdmin(actor)) return "Only a network administrator may create an account";
+    if (roleRank(incoming.role) >= 1) return "Grant a Minister or Imperial role after the account exists";
+    if (incoming.sysAdmin && actor.role !== "emperor") return "Only the owner may grant administrator rights";
+    if (incoming.vxRole) return "Confer a Vinish office from the Vindex portal";
+    if (incoming.wxRole) return "Confer a Wildenian office from the Wilden service";
+    return null;
+  }
+  // Setting a password hash directly is possession, and self-service goes through
+  // /api/change-password (which checks the old password). Guard it explicitly:
+  // otherwise a write changing only the hash would pass the loop below, since the
+  // hash is a meta field the loop skips — an account-takeover hole.
+  if (incoming.passwordHash !== undefined && !isSysAdmin(actor))
+    return "Only a network administrator may set an account's password";
+  // An existing account: every field that actually changed must be one the actor
+  // is entitled to change. Meta fields are handled elsewhere and never counted.
+  const keys = new Set([...Object.keys(existing), ...Object.keys(incoming)]);
+  for (const f of keys) {
+    if (ACCT_META.has(f)) continue;
+    if (JSON.stringify(incoming[f]) === JSON.stringify(existing[f])) continue;
+    const err = fieldAuth(actor, f, existing[f], incoming[f]);
+    if (err) return err;
+  }
+  // An office may be conferred only on a citizen of that nation. The loop above
+  // confirmed the actor may confer it; this confirms the person is eligible to hold
+  // it. Removing an office, or setting mere "citizen"/none, needs no citizenship.
+  const u = String(existing.username || incoming.username || "");
+  if (String(incoming.vxRole || "") !== String(existing.vxRole || "")
+    && VX_CITIZEN_OFFICES.has(String(incoming.vxRole || ""))
+    && !(await isCitizenOf("vx_state_citizens", u)))
+    return "Only a citizen of Vindex Nation may hold office — grant citizenship in the Department of State first";
+  if (String(incoming.wxRole || "") !== String(existing.wxRole || "")
+    && WX_CITIZEN_OFFICES.has(String(incoming.wxRole || ""))
+    && !(await isCitizenOf("wx_state_citizens", u)))
+    return "Only a citizen of Wilden may hold office — grant citizenship in the Ministry of Foreign Affairs first";
+  return null;
 }
 function recordId(collection, record) {
   if (collection === "accounts") return String(record.username || record._id || "").toLowerCase();
   return String(record.id || record._id || "");
 }
+// A Representative casts one vote, under their own name, on a bill that is actually
+// before the House. The record's id ties the vote to the voter, so a vote can be
+// neither cast for someone else nor duplicated to pad a count; re-voting while the
+// floor is open simply replaces it, which is what changing your mind looks like.
+async function authorizeVxVote(actor, record) {
+  const u = String(actor.username || "").toLowerCase();
+  if (String(actor.vxRole || "") !== "representative")
+    return "Only sitting Representatives of Vindex Nation may vote";
+  if (String(record.username || "").toLowerCase() !== u)
+    return "You may only cast your own vote";
+  if (String(record.id || "") !== String(record.billId || "") + "__" + u)
+    return "Vote does not match its record";
+  const bill = await db.collection("vx_bills").findOne({ _id: String(record.billId || "") });
+  if (!bill) return "No such bill";
+  if (bill.status !== "floor" && bill.status !== "override")
+    return "This bill is not before the House";
+  return null;
+}
+
+// Who may move a measure through the House. A Representative introduces one onto
+// the docket and may revise their own while it sits there; calling it to the floor
+// and closing the vote are the Speaker's (or, in the Speaker's absence, the
+// President's) under TEA 6(1), and signing or vetoing is the President's alone
+// under TEA 4(2)(a). Judged against the stored bill, so a client cannot simply
+// declare its own measure passed.
+function vxPresides(actor) {
+  const r = String(actor.vxRole || "");
+  return actor.role === "emperor" || r === "speaker" || r === "president";
+}
+async function authorizeVxBill(actor, record) {
+  const u = String(actor.username || "").toLowerCase();
+  const role = String(actor.vxRole || "");
+  const isPres = role === "president" || actor.role === "emperor";
+  const existing = await db.collection("vx_bills").findOne({ _id: String(record.id || "") });
+  const next = String(record.status || "");
+  if (!existing) {
+    if (next !== "docket") return "A new measure is introduced onto the docket";
+    if (!vxPresides(actor) && role !== "representative")
+      return "Only a Representative or the Speaker may introduce a measure";
+    return null;
+  }
+  if (next === existing.status) {                      // revising the text, not moving it
+    if (existing.status !== "docket") return "A measure before the House can no longer be revised";
+    if (!vxPresides(actor) && String(existing.sponsor || "").toLowerCase() !== u)
+      return "Only the sponsor may revise this measure";
+    return null;
+  }
+  if (existing.status === "passed" && next === "law")
+    return isPres ? null : "Only the President may sign a bill into law";
+  if (next === "vetoed")
+    return isPres ? null : "Only the President may veto a bill";
+  return vxPresides(actor) ? null : "Only the Speaker or the President may move a measure through the House";
+}
+
+// A member votes in the House they actually sit in, under their own name, on a
+// bill actually before that House. The record's id ties the vote to the voter, the
+// House and the round, so a second passage under s25(3) is a fresh division and a
+// vote can be neither cast for someone else nor duplicated to pad a division.
+async function authorizeWxVote(actor, record) {
+  const u = String(actor.username || "").toLowerCase();
+  const role = String(actor.wxRole || "");
+  const house = String(record.house || "");
+  if (house === "commons" && !WX_COMMONS.has(role)) return "Only members of the House of Commons may vote in its divisions";
+  if (house === "lords" && role !== "lord") return "Only Lords may vote in divisions of the House of Lords";
+  if (house !== "commons" && house !== "lords") return "Unknown House";
+  if (String(record.username || "").toLowerCase() !== u) return "You may only cast your own vote";
+  const bill = await db.collection("wx_bills").findOne({ _id: String(record.billId || "") });
+  if (!bill) return "No such bill";
+  const round = Number(bill.round || 1);
+  if (String(record.id || "") !== String(record.billId || "") + "__" + house + "__" + round + "__" + u)
+    return "Vote does not match its record";
+  const open = { commons: ["commons", "reconsider"], lords: ["lords"] }[house];
+  if (!open.includes(String(bill.stage || ""))) return "This bill is not before that House";
+  return null;
+}
+
+// Introducing a bill is open to anyone with a seat; moving it between stages is
+// the Speaker's or the Prime Minister's, and the Royal Assent is the Sovereign's
+// alone (s10). Judged against the stored bill, so a client cannot declare its own
+// bill passed, nor assent to it.
+async function authorizeWxBill(actor, record) {
+  const u = String(actor.username || "").toLowerCase();
+  const role = String(actor.wxRole || "");
+  const seated = WX_COMMONS.has(role) || role === "lord";
+  const existing = await db.collection("wx_bills").findOne({ _id: String(record.id || "") });
+  const next = String(record.stage || "");
+  if (!existing) {
+    if (next !== "draft") return "A bill is introduced before it goes before a House";
+    if (!seated && !wxPresides(actor)) return "Only a member of either House may introduce a bill";
+    return null;
+  }
+  if (next === existing.stage) {
+    if (existing.stage !== "draft") return "A bill before a House can no longer be revised";
+    if (!wxPresides(actor) && String(existing.sponsor || "").toLowerCase() !== u)
+      return "Only the member who introduced this bill may revise it";
+    return null;
+  }
+  if (next === "act")
+    return (role === "sovereign" || actor.role === "emperor") ? null : "Only the Sovereign may signify the Royal Assent";
+  return wxPresides(actor) ? null : "Only the Speaker, the Prime Minister or the Sovereign may move a bill through Parliament";
+}
+
 async function writeRule(collection, actor, record) {
   if (!actor) return "Not authenticated";
+  if (collection === "wx_votes") return await authorizeWxVote(actor, record);
+  if (collection === "wx_bills") return await authorizeWxBill(actor, record);
+  if (collection === "vx_votes") return await authorizeVxVote(actor, record);
+  if (collection === "vx_bills") return await authorizeVxBill(actor, record);
+  // An executive order is the President's own instrument — TEA Sec. 4(3)(a).
+  if (collection === "vx_orders")
+    return (actor.role === "emperor" || String(actor.vxRole || "") === "president")
+      ? null : "Only the President of Vindex Nation may issue an executive order";
   // The master-password store is written only through /api/master-password (Emperor).
   if (collection === "secrets") return "Forbidden";
   // Profile pictures are written only through /api/profile-picture.
@@ -478,8 +742,15 @@ async function writeRule(collection, actor, record) {
 async function deleteRule(collection, actor) {
   if (!actor) return "Not authenticated";
   if (collection === "secrets") return "Forbidden";
+  // Striking a measure or an order from the record is an act of office.
+  if (collection === "vx_bills" || collection === "vx_orders")
+    return vxPresides(actor) ? null : "Only the Speaker or the President may strike this from the record";
+  if (collection === "vx_votes") return "A vote once cast stands on the record";
+  if (collection === "wx_bills")
+    return wxPresides(actor) ? null : "Only the Speaker, the Prime Minister or the Sovereign may withdraw a bill";
+  if (collection === "wx_votes") return "A vote once cast stands on the record";
   if (collection === "mi_pfp") return "Use /api/profile-picture";
-  if (collection === "accounts") return (actor.role === "emperor" || actor.role === "minister") ? null : "Only the Interior Ministry may delete accounts";
+  if (collection === "accounts") return isSysAdmin(actor) ? null : "Only a network administrator may delete an account";
   if (collection === "mi_lss_ops" || collection === "mi_lss_docs") return canSeeLSS(actor) ? null : "Not authorised (LSS)";
   if (collection === "mi_lfp_ops" || collection === "mi_arrests") return canSeeLFP(actor) ? null : "Not authorised (LFP)";
   return await authorizeKeyWrite(actor, collection);
@@ -627,7 +898,10 @@ function collName(key) { return String(key).replace(/[^a-zA-Z0-9_]/g, "_"); }
 // Settings objects whose values happen to all be objects, so the "looks like a
 // record map" heuristic would wrongly explode them into a collection. These are
 // always stored as a single document.
-const SINGLETON_KEYS = new Set(["bk_orgchart"]);
+// vx_gov is one such: its only member is the cabinet map, so the heuristic would
+// flip it between singleton and collection depending on whether a post happens to
+// be assigned.
+const SINGLETON_KEYS = new Set(["bk_orgchart", "vx_gov", "wx_gov"]);
 async function replaceCollection(name, docs) {
   const c = db.collection(name);
   await c.deleteMany({});
