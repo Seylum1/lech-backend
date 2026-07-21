@@ -336,6 +336,15 @@ app.get("/api/collection/:name", async (req, res) => {
     const kind = PROTECTED[name];
     const all = () => db.collection(name).find({}).toArray();
 
+    // Personal documents follow the same rule as the snapshot: the issuing
+    // government sees the register, a bearer sees their own, others none.
+    if (PRIVATE_DOCS[name]) {
+      const docs = await all();
+      if (actor && PRIVATE_DOCS[name](actor)) return res.json({ ok: true, data: docs });
+      const u = actor ? String(actor.username || "").toLowerCase() : "";
+      return res.json({ ok: true, data: docs.filter(d => u && String(d.username || "").toLowerCase() === u) });
+    }
+
     if (!kind) return res.json({ ok: true, data: await all() });         // public
 
     if (kind === "lss") {
@@ -350,6 +359,27 @@ app.get("/api/collection/:name", async (req, res) => {
     return res.json({ ok: true, data: [] });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
+
+// Passports are personal documents, not public records. The issuing government
+// sees its full register (the future law-enforcement MDT will draw on the same
+// authority); a signed-in bearer sees their own documents; everyone else sees
+// none. Keyed by register → the office that governs it.
+const PRIVATE_DOCS = {
+  mfa_passports: (a) => hasMFA(a),
+  vx_state_passports: (a) => hasVindex(a),
+  wx_state_passports: (a) => hasWilden(a),
+};
+function filterPrivateDocs(key, value, actor) {
+  const guard = PRIVATE_DOCS[key];
+  if (!guard) return value;
+  if (actor && guard(actor)) return value;
+  const u = actor ? String(actor.username || "").toLowerCase() : "";
+  const own = {};
+  Object.entries(value || {}).forEach(([id, rec]) => {
+    if (u && rec && String(rec.username || "").toLowerCase() === u) own[id] = rec;
+  });
+  return own;
+}
 
 // A single filtered snapshot of everything the viewer may see, in the same
 // {key:{id:record}} shape the pages already expect — so the page code barely
@@ -366,7 +396,7 @@ app.get("/api/data", async (req, res) => {
         out["mi_accounts"] = map; continue;
       }
       if (name === "singletons") {
-        (await db.collection("singletons").find({}).toArray()).forEach(d => { out[d._id] = d.value; });
+        (await db.collection("singletons").find({}).toArray()).forEach(d => { out[d._id] = filterPrivateDocs(d._id, d.value, actor); });
         continue;
       }
       if (name === "bk_bills") {   // bills were grouped on import; restore their original bk_bill_* keys
@@ -377,7 +407,8 @@ app.get("/api/data", async (req, res) => {
       const kind = PROTECTED[name];
       if (kind === "lss") { if (!canSeeLSS(actor)) docs = []; else { const cl = actor.clearance || 0; docs = docs.filter(d => (d.clearance || 0) <= cl); } }
       else if (kind === "lfp" || kind === "arrests") { if (!canSeeLFP(actor)) docs = []; }
-      const map = {}; docs.forEach(d => { map[d._id] = d; });
+      let map = {}; docs.forEach(d => { map[d._id] = d; });
+      map = filterPrivateDocs(name, map, actor);
       out[name] = map;
     }
     res.json({ ok: true, data: out });
@@ -529,10 +560,12 @@ const ACCT_META = new Set(["_id", "_writtenBy", "_writtenAt", "passwordHash", "s
 // Identity & possession — the administrator's slice.
 const ACCT_IDENTITY = new Set(["displayName", "mcName", "mcUuid", "pfpLocked", "notes"]);
 // Lech permissions — the Interior Ministry's slice.
+// citizenshipStatus is retired: citizenship lives solely on the mfa_citizens
+// register, granted by the Ministry of Foreign Affairs — never as an account field.
 const ACCT_LECH = new Set(["role", "clearance", "ministry", "isContractor", "lssRole", "lfpRole",
   "agentAssigned", "officerAssigned", "mdtRestricted", "mdtClearance", "mowRole", "mowAccess",
   "canSetAlert", "mofRole", "mofAccess", "pressRole", "pressAccess", "ijAccess", "mfaAccess",
-  "imcRole", "stateOfResidency", "citizenshipStatus"]);
+  "imcRole", "stateOfResidency"]);
 
 // Conferring a Vinish office (vxRole). Owner may set any; the President may set any
 // but the presidency (the Emperor's to confer, TEA 4(1)(a)); the Speaker may only
