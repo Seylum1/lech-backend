@@ -138,6 +138,25 @@ app.post("/api/login", async (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
+// Every player carries a proper in-character name — a first and a last name —
+// which becomes the display name everywhere. The username is the Minecraft
+// account; the roleplay name is who they are on the network.
+const RP_PART_RE = /^[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'’\-\.]{0,23}$/;
+function roleplayName(first, last) {
+  const f = String(first || "").trim(), l = String(last || "").trim();
+  if (!f || !l) return { ok: false, error: "Enter both a first name and a last name for your roleplay character." };
+  if (!RP_PART_RE.test(f) || !RP_PART_RE.test(l))
+    return { ok: false, error: "Names may only contain letters, hyphens and apostrophes (up to 24 characters each)." };
+  return { ok: true, name: f + " " + l };
+}
+// An account still needs a roleplay name if it predates the requirement: no
+// display name, a display name that simply restates the username, or a single
+// word. The Vintranet gates entry on this until the name is set.
+function needsRoleplayName(acc) {
+  const dn = String((acc && acc.displayName) || "").trim();
+  return !dn || dn.toLowerCase() === String((acc && acc.username) || "").toLowerCase() || !/\s/.test(dn);
+}
+
 // Public self-registration. Anyone may create their own account, but only their
 // own and only with safe defaults: an ordinary citizen at zero clearance. The
 // username must be a real Minecraft account (verified against Mojang). Every new
@@ -147,8 +166,11 @@ app.post("/api/register", async (req, res) => {
   try {
     const raw = String((req.body && req.body.username) || "").trim();
     const passwordHash = String((req.body && req.body.passwordHash) || "");
-    const displayName = String((req.body && req.body.displayName) || "").trim();
+    const rpName = roleplayName(req.body && req.body.firstName, req.body && req.body.lastName);
     if (!MC_NAME_RE.test(raw)) return res.status(400).json({ ok: false, error: "Enter a valid Minecraft username (3–16 letters, numbers or underscores)." });
+    if (!rpName.ok) return res.status(400).json({ ok: false, error: rpName.error });
+    if (rpName.name.toLowerCase() === raw.toLowerCase()) return res.status(400).json({ ok: false, error: "Your roleplay name must be a proper name, not your username." });
+    const displayName = rpName.name;
     if (!/^[a-f0-9]{64}$/i.test(passwordHash)) return res.status(400).json({ ok: false, error: "A password is required." });
     const id = raw.toLowerCase();
     if (await db.collection("accounts").findOne({ _id: id }, { projection: { _id: 1 } }))
@@ -164,7 +186,7 @@ app.post("/api/register", async (req, res) => {
     // its own citizenship and offices afterward. `role: "citizen"` is only Lech's
     // baseline "no office" value and confers no citizenship of anywhere.
     const doc = {
-      _id: id, username: id, displayName: displayName || mc.name, passwordHash,
+      _id: id, username: id, displayName, passwordHash,
       role: "citizen", mcUuid: mc.uuid, mcName: mc.name, pfpLocked: false, notes: "",
       _selfRegistered: true, _writtenBy: id, _writtenAt: now,
     };
@@ -214,6 +236,25 @@ app.post("/api/change-password", async (req, res) => {
     if (!/^[a-f0-9]{64}$/i.test(newHash)) return res.status(400).json({ ok: false, error: "The new password is not valid." });
     await db.collection("accounts").updateOne({ _id: actor._id }, { $set: { passwordHash: newHash, _writtenAt: Date.now() }, $unset: { salt: "" } });
     res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Self-service roleplay name. Accounts that predate the first/last-name rule
+// carry their username as a display name; the Vintranet blocks them at the door
+// until they set a proper name here. It is a one-time repair, not a rename
+// service — once a real name is on file, changes go through an administrator.
+app.post("/api/set-name", async (req, res) => {
+  try {
+    const actor = await actorFromReq(req);
+    if (!actor) return res.status(401).json({ ok: false, error: "Not authenticated" });
+    if (!needsRoleplayName(actor)) return res.status(403).json({ ok: false, error: "Your roleplay name is already on file — ask an administrator to change it." });
+    const rpName = roleplayName(req.body && req.body.firstName, req.body && req.body.lastName);
+    if (!rpName.ok) return res.status(400).json({ ok: false, error: rpName.error });
+    if (rpName.name.toLowerCase() === String(actor.username || "").toLowerCase())
+      return res.status(400).json({ ok: false, error: "Your roleplay name must be a proper name, not your username." });
+    await db.collection("accounts").updateOne({ _id: actor._id }, { $set: { displayName: rpName.name, _writtenAt: Date.now() } });
+    const acc = await db.collection("accounts").findOne({ _id: actor._id });
+    res.json({ ok: true, account: sanitizeAccount(acc) });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
