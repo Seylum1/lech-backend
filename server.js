@@ -337,10 +337,12 @@ app.get("/api/collection/:name", async (req, res) => {
     const all = () => db.collection(name).find({}).toArray();
 
     // Personal documents follow the same rule as the snapshot: the issuing
-    // government sees the register, a bearer sees their own, others none.
+    // government sees the register, the Republic's DOJ reads it through the MDT,
+    // a bearer sees their own, others none.
     if (PRIVATE_DOCS[name]) {
       const docs = await all();
       if (actor && PRIVATE_DOCS[name](actor)) return res.json({ ok: true, data: docs });
+      if (actor && DOJ_READABLE.has(name) && await isDojMember(actor.username)) return res.json({ ok: true, data: docs });
       const u = actor ? String(actor.username || "").toLowerCase() : "";
       return res.json({ ok: true, data: docs.filter(d => u && String(d.username || "").toLowerCase() === u) });
     }
@@ -360,19 +362,24 @@ app.get("/api/collection/:name", async (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
-// Passports are personal documents, not public records. The issuing government
-// sees its full register (the future law-enforcement MDT will draw on the same
-// authority); a signed-in bearer sees their own documents; everyone else sees
-// none. Keyed by register → the office that governs it.
+// Personal documents, not public records: passports, and the Republic's identity
+// cards. The issuing government sees its full register; a bearer sees their own;
+// everyone else sees none. The Republic's law-enforcement MDT (any member of the
+// Department of Justice) draws on the same registers, so a DOJ viewer is granted
+// the full view of passports and identity cards too. Keyed by register → office.
 const PRIVATE_DOCS = {
   mfa_passports: (a) => hasMFA(a),
   vx_state_passports: (a) => hasVindex(a),
   wx_state_passports: (a) => hasWilden(a),
+  vx_state_ids: (a) => hasVindex(a),
 };
-function filterPrivateDocs(key, value, actor) {
+// Registers the DOJ's MDT may read in full, regardless of the office-based guard.
+const DOJ_READABLE = new Set(["vx_state_passports", "wx_state_passports", "mfa_passports", "vx_state_ids"]);
+function filterPrivateDocs(key, value, actor, viewerIsDoj) {
   const guard = PRIVATE_DOCS[key];
   if (!guard) return value;
   if (actor && guard(actor)) return value;
+  if (viewerIsDoj && DOJ_READABLE.has(key)) return value;
   const u = actor ? String(actor.username || "").toLowerCase() : "";
   const own = {};
   Object.entries(value || {}).forEach(([id, rec]) => {
@@ -387,6 +394,9 @@ function filterPrivateDocs(key, value, actor) {
 app.get("/api/data", async (req, res) => {
   try {
     const actor = await actorFromReq(req);
+    // Resolved once for the whole snapshot: is the viewer a member of the Republic's
+    // Department of Justice? If so the MDT may read passports and identity cards.
+    const viewerIsDoj = actor ? await isDojMember(actor.username) : false;
     const out = {};
     for (const { name } of await db.listCollections().toArray()) {
       if (name === "sessions" || name === "secrets") continue;
@@ -396,7 +406,7 @@ app.get("/api/data", async (req, res) => {
         out["mi_accounts"] = map; continue;
       }
       if (name === "singletons") {
-        (await db.collection("singletons").find({}).toArray()).forEach(d => { out[d._id] = filterPrivateDocs(d._id, d.value, actor); });
+        (await db.collection("singletons").find({}).toArray()).forEach(d => { out[d._id] = filterPrivateDocs(d._id, d.value, actor, viewerIsDoj); });
         continue;
       }
       if (name === "bk_bills") {   // bills were grouped on import; restore their original bk_bill_* keys
@@ -408,7 +418,7 @@ app.get("/api/data", async (req, res) => {
       if (kind === "lss") { if (!canSeeLSS(actor)) docs = []; else { const cl = actor.clearance || 0; docs = docs.filter(d => (d.clearance || 0) <= cl); } }
       else if (kind === "lfp" || kind === "arrests") { if (!canSeeLFP(actor)) docs = []; }
       let map = {}; docs.forEach(d => { map[d._id] = d; });
-      map = filterPrivateDocs(name, map, actor);
+      map = filterPrivateDocs(name, map, actor, viewerIsDoj);
       out[name] = map;
     }
     res.json({ ok: true, data: out });
@@ -487,9 +497,39 @@ function keyDomain(key) {
   if (key.startsWith("wx_")) return "wilden";          // Wilden
   return "auth";                                       // eco_/exchange_/lbs_ … login required; review later
 }
+// The Department of Justice of the Republic of Vindex Nation. Its people are not
+// legislative office-holders, so they cannot be recognised by vxRole; instead
+// membership is read from the vx_doj register itself — the Attorney General, each
+// agency's head and deputies, and everyone on an agency roster. This is the same
+// pattern as isCitizenOf: authority proven against a live register, not a field.
+const DOJ_KEYS = new Set(["vx_doj", "vx_state_ids", "vx_doj_records", "vx_warrants"]);
+async function isDojMember(username) {
+  const u = String(username || "").toLowerCase();
+  if (!u) return false;
+  const doc = await db.collection("singletons").findOne({ _id: "vx_doj" });
+  const doj = (doc && doc.value) || {};
+  if (String(doj.attorneyGeneral || "").toLowerCase() === u) return true;
+  const agencies = doj.agencies || {};
+  for (const id of Object.keys(agencies)) {
+    const a = agencies[id] || {};
+    if (String(a.head || "").toLowerCase() === u) return true;
+    if ((a.deputies || []).some((d) => String(d || "").toLowerCase() === u)) return true;
+    const roster = a.roster || {};
+    if (Object.keys(roster).some((k) => String(k).toLowerCase() === u)) return true;
+  }
+  return false;
+}
+
 async function authorizeKeyWrite(actor, key) {
   if (!actor) return "Not authenticated";
   if (actor.role === "emperor") return null;
+  // Justice keys: a Vindex officer (the President or Cabinet appoint and oversee
+  // it) or any member of the Department itself. The page enforces who may do what.
+  if (DOJ_KEYS.has(key)) {
+    if (hasVindex(actor)) return null;
+    if (await isDojMember(actor.username)) return null;
+    return "Requires an office in the Department of Justice";
+  }
   switch (keyDomain(key)) {
     case "auth": return null;
     case "finance": return hasFinance(actor) ? null : "Requires Ministry of Finance authority";
