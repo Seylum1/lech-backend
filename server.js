@@ -444,6 +444,22 @@ function isReturningOfficer(a) { return a.role === "emperor" || a.role === "mini
 // five of seven — are enforced per record below.
 const VX_OFFICES = new Set(["representative", "speaker", "cabinet", "vice_president", "president"]);
 function hasVindex(a) { return a.role === "emperor" || VX_OFFICES.has(String(a.vxRole || "")); }
+// The war room (lvwar_* keys) sits between two militaries. Lech's side is the War
+// Office (hasWar). The Republic's side belongs to its Department of Defense — a
+// department with no page yet, so its authority is anchored where it will be
+// conferred when that page exists: the Secretary of Defense, a Cabinet Secretary
+// (vxRole "cabinet") holding the "Secretary of Defense" post assigned on the
+// Vindex portal's Cabinet panel (vx_gov.cabinet, username → post).
+async function hasVxDefense(actor) {
+  if (!actor) return false;
+  if (actor.role === "emperor") return true;
+  if (String(actor.vxRole || "") !== "cabinet") return false;
+  const gov = await db.collection("singletons").findOne({ _id: "vx_gov" });
+  const posts = (gov && gov.value && gov.value.cabinet) || {};
+  const post = posts[String(actor.username || "").toLowerCase()];
+  return /^secretary of defen[cs]e$/i.test(String(post || "").trim());
+}
+
 // The same idea for Wilden. Office there is conferred on Wilden's own service and
 // held on the account as wxRole. The site owner's account stands outside the
 // Constitution and can appoint the Sovereign, which is how the first one is filled.
@@ -493,6 +509,7 @@ function keyDomain(key) {
   if (key.startsWith("imc_")) return "imc";
   if (key.startsWith("el_")) return "elections";
   if (key.startsWith("bk_") || key.startsWith("bh")) return "governance";
+  if (key.startsWith("lvwar_")) return "lvwar";        // Lech–Vindex war room
   if (key.startsWith("vx_")) return "vindex";          // Republic of Vindex Nation
   if (key.startsWith("wx_")) return "wilden";          // Wilden
   return "auth";                                       // eco_/exchange_/lbs_ … login required; review later
@@ -543,6 +560,15 @@ async function authorizeKeyWrite(actor, key) {
     case "governance": return (await hasBKStanding(actor)) ? null : "Requires a seat or office in the Bundeskongress";
     case "vindex": return hasVindex(actor) ? null : "Requires an office in the Republic of Vindex Nation";
     case "wilden": return hasWilden(actor) ? null : "Requires an office in Wilden";
+    // The war room. Battles move the tracker itself and are open to claims of
+    // convenience, so recording them is a network administrator's act — as is the
+    // war's configuration. The map — borders and who holds them — is military
+    // business: either belligerent's defense authority may redraw it.
+    case "lvwar":
+      if (key === "lvwar_battles" || key === "lvwar_meta")
+        return isSysAdmin(actor) ? null : "Reserved to network administrators";
+      return (hasWar(actor) || isSysAdmin(actor) || (await hasVxDefense(actor)))
+        ? null : "Requires War Office or Department of Defense authority";
     default: return null;
   }
 }
