@@ -94,8 +94,9 @@ async function actorFromReq(req) {
   if (!s || !s.exp || s.exp < Date.now()) { if (s) await db.collection("sessions").deleteOne({ _id: token }); return null; }
   const acc = await db.collection("accounts").findOne({ _id: s.username });
   // A banned account is locked out at once: its session is destroyed the moment
-  // it is used again, so a ban takes effect without waiting for a sign-out.
-  if (acc && acc.banned) {
+  // it is used again, so a ban takes effect without waiting for a sign-out. An
+  // account awaiting review carries no authority either.
+  if (acc && (acc.banned || acc.approved === false)) {
     await db.collection("sessions").deleteMany({ username: acc._id });
     return null;
   }
@@ -144,6 +145,12 @@ app.post("/api/login", async (req, res) => {
         ? "This account is suspended: " + String(acc.banReason)
         : "This account has been suspended by a network administrator." });
     }
+    // An account still awaiting review cannot sign in either. Accounts made
+    // before approval existed have no flag at all and are treated as admitted.
+    if (acc.approved === false) {
+      return res.status(403).json({ ok: false, pending: true,
+        error: "Your account is under review. You'll be able to sign in once an administrator approves it." });
+    }
     LOGIN_FAILS.delete(k);
     const token = crypto.randomUUID();
     const sess = { _id: token, username: acc._id, exp: Date.now() + SESSION_TTL_MS };
@@ -177,8 +184,24 @@ function needsRoleplayName(acc) {
 // username must be a real Minecraft account (verified against Mojang). Every new
 // account begins as a Registered Alien on the citizenship register; ticking the
 // citizen box flags that record for the Ministry of Foreign Affairs to review.
+// Registration can be closed by an administrator — during an incident, or while
+// the network is not taking new people. The reason is public, because someone
+// turned away deserves to know why.
+async function registrationState() {
+  const doc = await db.collection("singletons").findOne({ _id: "vt_registration" });
+  const v = (doc && doc.value) || {};
+  return { closed: !!v.closed, reason: String(v.reason || ""), at: v.at || null, by: v.by || null };
+}
+app.get("/api/registration", async (_req, res) => {
+  try { const s = await registrationState(); res.json({ ok: true, open: !s.closed, reason: s.reason }); }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 app.post("/api/register", async (req, res) => {
   try {
+    const reg = await registrationState();
+    if (reg.closed) return res.status(403).json({ ok: false, closed: true,
+      error: reg.reason || "Registration is currently closed." });
     const raw = String((req.body && req.body.username) || "").trim();
     const passwordHash = String((req.body && req.body.passwordHash) || "");
     const rpName = roleplayName(req.body && req.body.firstName, req.body && req.body.lastName);
@@ -200,15 +223,20 @@ app.post("/api/register", async (req, res) => {
     // is a linked Minecraft account and a name, and nothing else; each country grants
     // its own citizenship and offices afterward. `role: "citizen"` is only Lech's
     // baseline "no office" value and confers no citizenship of anywhere.
+    //
+    // It also arrives UNAPPROVED. A self-registration is a request to join the
+    // network, not a joining of it: an administrator or moderator admits it from
+    // the Vintranet panel. No session is issued here, so a pending account cannot
+    // act at all until it is let in.
     const doc = {
       _id: id, username: id, displayName, passwordHash,
       role: "citizen", mcUuid: mc.uuid, mcName: mc.name, pfpLocked: false, notes: "",
+      approved: false, registeredAt: now,
       _selfRegistered: true, _writtenBy: id, _writtenAt: now,
     };
     await db.collection("accounts").insertOne(doc);
-    const token = crypto.randomUUID();
-    await db.collection("sessions").insertOne({ _id: token, username: id, exp: now + SESSION_TTL_MS });
-    res.json({ ok: true, token, account: sanitizeAccount(doc) });
+    res.json({ ok: true, pending: true,
+      message: "Your account has been created and is awaiting review. You'll be able to sign in once it is approved." });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
@@ -631,6 +659,10 @@ async function isAlliedPolice(actor) {
 
 async function authorizeKeyWrite(actor, key) {
   if (!actor) return "Not authenticated";
+  // Closing registration is an administration act. Checked before the blanket
+  // administrator grant below so the rule is stated plainly rather than implied.
+  if (key === "vt_registration")
+    return isSysAdmin(actor) ? null : "Only a network administrator may open or close registration";
   // The network administrator runs the estate — the owner, and anyone the owner
   // has granted sysAdmin. Both are trusted with every register here, the same way
   // both already hold account possession and moderation powers.
@@ -717,6 +749,10 @@ async function holdsNamedOffice(actor, office) {
 // the Vintranet admin panel. Each nation owns only its own office fields. This is
 // the reform that unbinds "who runs the server" from "who runs Lech".
 const isSysAdmin = (a) => !!a && (a.role === "emperor" || a.sysAdmin === true);
+// A system moderator polices the network without running it: they may admit an
+// account awaiting review and suspend one that misbehaves, and nothing else.
+// Every administrator is also a moderator.
+const isSysMod = (a) => isSysAdmin(a) || (!!a && a.sysMod === true);
 const isLechInterior = (a) => !!a && (a.role === "emperor" || a.role === "minister");
 
 // Fields nobody edits through this path: the id, the write-stamps, and the
@@ -789,10 +825,15 @@ function fieldAuth(actor, field, prev, next) {
     return isSysAdmin(actor) ? null : "Only a network administrator may change account identity";
   if (field === "sysAdmin")
     return actor.role === "emperor" ? null : "Only the owner may grant or revoke administrator rights";
-  // Suspension is a network-administration act, not a national one. An
-  // administrator may not ban the owner, nor themselves.
+  // Moderators are appointed by the administration, not by one another.
+  if (field === "sysMod")
+    return isSysAdmin(actor) ? null : "Only a network administrator may appoint a moderator";
+  // Suspension and admission are the moderator's two powers, shared with the
+  // administration. A moderator may not ban the owner, nor themselves.
   if (field === "banned" || field === "banReason" || field === "bannedAt" || field === "bannedBy")
-    return isSysAdmin(actor) ? null : "Only a network administrator may suspend an account";
+    return isSysMod(actor) ? null : "Only a network administrator or moderator may suspend an account";
+  if (field === "approved" || field === "approvedAt" || field === "approvedBy" || field === "registeredAt")
+    return isSysMod(actor) ? null : "Only a network administrator or moderator may admit an account";
   if (ACCT_LECH.has(field)) {
     if (field === "role") {
       if (roleRank(next) === 2 || roleRank(prev) === 2)
@@ -830,11 +871,13 @@ async function authorizeAccountWrite(actor, incoming) {
   // hash is a meta field the loop skips — an account-takeover hole.
   if (incoming.passwordHash !== undefined && !isSysAdmin(actor))
     return "Only a network administrator may set an account's password";
-  // A suspension has two people it can never reach: the owner, who answers to no
-  // administrator, and the actor themselves — nobody locks themselves out.
+  // A suspension has people it can never reach: the owner, who answers to no
+  // administrator; the actor themselves — nobody locks themselves out; and, for a
+  // mere moderator, anyone in the administration above them.
   if (!!incoming.banned !== !!existing.banned) {
     if (existing.role === "emperor") return "The owner's account cannot be suspended";
     if (String(existing._id) === String(actor._id)) return "You cannot suspend your own account";
+    if (!isSysAdmin(actor) && isSysAdmin(existing)) return "A moderator may not suspend an administrator";
   }
   // An existing account: every field that actually changed must be one the actor
   // is entitled to change. Meta fields are handled elsewhere and never counted.
@@ -1028,7 +1071,13 @@ app.post("/api/write", async (req, res) => {
     const id = recordId(collection, record);
     if (!id) return res.status(400).json({ ok: false, error: "Record has no id" });
     const doc = { ...record, _id: id, _writtenBy: actor.username, _writtenAt: Date.now() };
-    if (collection === "accounts") { doc.username = String(record.username || id).toLowerCase(); await applyAccountSecret(doc); }
+    if (collection === "accounts") {
+      doc.username = String(record.username || id).toLowerCase();
+      await applyAccountSecret(doc);
+      // An account made here was made by an administrator, so it is admitted on
+      // creation — only a self-registration waits for review.
+      if (doc.approved === undefined) doc.approved = true;
+    }
     await db.collection(collection).replaceOne({ _id: id }, doc, { upsert: true });
     // A suspension takes hold immediately: every session this account holds is
     // destroyed the moment the ban is written, signing them out everywhere.
