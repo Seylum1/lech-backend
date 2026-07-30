@@ -357,7 +357,7 @@ app.get("/api/collection/:name", async (req, res) => {
     if (PRIVATE_DOCS[name]) {
       const docs = await all();
       if (actor && PRIVATE_DOCS[name](actor)) return res.json({ ok: true, data: docs });
-      if (actor && DOJ_READABLE.has(name) && await isDojMember(actor.username)) return res.json({ ok: true, data: docs });
+      if (actor && POLICE_READABLE.has(name) && ((await isDojMember(actor.username)) || (await isHomeOfficeMember(actor.username)))) return res.json({ ok: true, data: docs });
       const u = actor ? String(actor.username || "").toLowerCase() : "";
       return res.json({ ok: true, data: docs.filter(d => u && String(d.username || "").toLowerCase() === u) });
     }
@@ -369,7 +369,12 @@ app.get("/api/collection/:name", async (req, res) => {
       const cl = actor.clearance || 0;
       return res.json({ ok: true, data: (await all()).filter(d => (d.clearance || 0) <= cl) });
     }
-    if (kind === "lfp" || kind === "arrests") {
+    if (kind === "arrests") {
+      // The arrest register is a criminal record, and allied police read it.
+      if (!canSeeLFP(actor) && !(await isAlliedPolice(actor))) return res.json({ ok: true, data: [] });
+      return res.json({ ok: true, data: await all() });
+    }
+    if (kind === "lfp") {
       if (!canSeeLFP(actor)) return res.json({ ok: true, data: [] });
       return res.json({ ok: true, data: await all() });   // MDT-seal refinement pending
     }
@@ -387,14 +392,19 @@ const PRIVATE_DOCS = {
   vx_state_passports: (a) => hasVindex(a),
   wx_state_passports: (a) => hasWilden(a),
   vx_state_ids: (a) => hasVindex(a),
+  wx_state_ids: (a) => hasWilden(a),
 };
-// Registers the DOJ's MDT may read in full, regardless of the office-based guard.
-const DOJ_READABLE = new Set(["vx_state_passports", "wx_state_passports", "mfa_passports", "vx_state_ids"]);
-function filterPrivateDocs(key, value, actor, viewerIsDoj) {
+// Registers a police terminal may read in full, regardless of the office-based
+// guard: a constable checking someone must see every document they carry, not
+// only their own nation's. Both the Republic's Department of Justice and
+// Wilden's Home Office run such a terminal.
+const POLICE_READABLE = new Set(["vx_state_passports", "wx_state_passports", "mfa_passports",
+  "vx_state_ids", "wx_state_ids", "vx_doj_records", "wx_home_records", "vx_warrants", "wx_warrants"]);
+function filterPrivateDocs(key, value, actor, viewerIsPolice) {
   const guard = PRIVATE_DOCS[key];
   if (!guard) return value;
   if (actor && guard(actor)) return value;
-  if (viewerIsDoj && DOJ_READABLE.has(key)) return value;
+  if (viewerIsPolice && POLICE_READABLE.has(key)) return value;
   const u = actor ? String(actor.username || "").toLowerCase() : "";
   const own = {};
   Object.entries(value || {}).forEach(([id, rec]) => {
@@ -411,7 +421,9 @@ app.get("/api/data", async (req, res) => {
     const actor = await actorFromReq(req);
     // Resolved once for the whole snapshot: is the viewer a member of the Republic's
     // Department of Justice? If so the MDT may read passports and identity cards.
-    const viewerIsDoj = actor ? await isDojMember(actor.username) : false;
+    const viewerIsPolice = actor
+      ? ((await isDojMember(actor.username)) || (await isHomeOfficeMember(actor.username)))
+      : false;
     const out = {};
     for (const { name } of await db.listCollections().toArray()) {
       if (name === "sessions" || name === "secrets") continue;
@@ -421,7 +433,7 @@ app.get("/api/data", async (req, res) => {
         out["mi_accounts"] = map; continue;
       }
       if (name === "singletons") {
-        (await db.collection("singletons").find({}).toArray()).forEach(d => { out[d._id] = filterPrivateDocs(d._id, d.value, actor, viewerIsDoj); });
+        (await db.collection("singletons").find({}).toArray()).forEach(d => { out[d._id] = filterPrivateDocs(d._id, d.value, actor, viewerIsPolice); });
         continue;
       }
       if (name === "bk_bills") {   // bills were grouped on import; restore their original bk_bill_* keys
@@ -431,9 +443,12 @@ app.get("/api/data", async (req, res) => {
       let docs = await db.collection(name).find({}).toArray();
       const kind = PROTECTED[name];
       if (kind === "lss") { if (!canSeeLSS(actor)) docs = []; else { const cl = actor.clearance || 0; docs = docs.filter(d => (d.clearance || 0) <= cl); } }
-      else if (kind === "lfp" || kind === "arrests") { if (!canSeeLFP(actor)) docs = []; }
+      // The arrest register is a criminal record: the Empire's own force, and
+      // allied police terminals, may read it. Operational files may not.
+      else if (kind === "arrests") { if (!canSeeLFP(actor) && !viewerIsPolice) docs = []; }
+      else if (kind === "lfp") { if (!canSeeLFP(actor)) docs = []; }
       let map = {}; docs.forEach(d => { map[d._id] = d; });
-      map = filterPrivateDocs(name, map, actor, viewerIsDoj);
+      map = filterPrivateDocs(name, map, actor, viewerIsPolice);
       out[name] = map;
     }
     res.json({ ok: true, data: out });
@@ -576,6 +591,44 @@ async function isDodMember(username) {
   return false;
 }
 
+// The Home Office of Wilden. Like the Department of Justice, its people are not
+// parliamentary office-holders and so cannot be recognised by wxRole; authority
+// is proven against the live register — the Secretary of State for Home Affairs
+// (seated as a department in wx_gov), the Constabulary's head and deputies, and
+// everyone on its roster.
+const HOME_KEYS = new Set(["wx_home", "wx_home_records", "wx_state_ids", "wx_warrants"]);
+const HOME_DEPTS = ["secretary of state for home affairs", "minister of home affairs"];
+async function isHomeOfficeMember(username) {
+  const u = String(username || "").toLowerCase();
+  if (!u) return false;
+  const gdoc = await db.collection("singletons").findOne({ _id: "wx_gov" });
+  const cab = (gdoc && gdoc.value && gdoc.value.cabinet) || {};
+  for (const holder in cab) {
+    if (HOME_DEPTS.includes(String(cab[holder] || "").trim().toLowerCase())
+        && String(holder).toLowerCase() === u) return true;
+  }
+  const doc = await db.collection("singletons").findOne({ _id: "wx_home" });
+  const home = (doc && doc.value) || {};
+  const agencies = home.agencies || {};
+  for (const id of Object.keys(agencies)) {
+    const a = agencies[id] || {};
+    if (String(a.head || "").toLowerCase() === u) return true;
+    if ((a.deputies || []).some((d) => String(d || "").toLowerCase() === u)) return true;
+    if (Object.keys(a.roster || {}).some((k) => String(k).toLowerCase() === u)) return true;
+  }
+  return false;
+}
+
+// An allied police service — the Republic's Department of Justice, or Wilden's
+// Home Office — running a lookup on someone. Their terminals show offences
+// recorded abroad, so they are trusted with the *record* of an arrest. They are
+// not trusted with operational files: LFP and LSS operations stay with the
+// service that owns them.
+async function isAlliedPolice(actor) {
+  if (!actor) return false;
+  return (await isDojMember(actor.username)) || (await isHomeOfficeMember(actor.username));
+}
+
 async function authorizeKeyWrite(actor, key) {
   if (!actor) return "Not authenticated";
   // The network administrator runs the estate — the owner, and anyone the owner
@@ -588,6 +641,12 @@ async function authorizeKeyWrite(actor, key) {
     if (hasVindex(actor)) return null;
     if (await isDodMember(actor.username)) return null;
     return "Requires an appointment in the Department of Defense";
+  }
+  // Home Office keys: a Wildenian office-holder, or anyone appointed within it.
+  if (HOME_KEYS.has(key)) {
+    if (hasWilden(actor)) return null;
+    if (await isHomeOfficeMember(actor.username)) return null;
+    return "Requires an appointment in the Home Office";
   }
   // Justice keys: a Vindex officer (the President or Cabinet appoint and oversee
   // it) or any member of the Department itself. The page enforces who may do what.
