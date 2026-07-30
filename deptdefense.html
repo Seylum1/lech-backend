@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Department of Defense — Republic of Vindex Nation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:#0b1930;color:#e8ebf2;font-family:'Crimson Text',Georgia,serif;min-height:100vh;}
+::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:#0b1930;}::-webkit-scrollbar-thumb{background:#24406e;border-radius:2px;}
+input,select,textarea{font-family:'Crimson Text',Georgia,serif;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+@keyframes pulse{0%,100%{opacity:.6;}50%{opacity:1;}}
+.fadeIn{animation:fadeIn .3s ease both;}
+.mono{font-family:'Share Tech Mono',monospace;}
+.pf{font-family:'Playfair Display',Georgia,serif;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useCallback,useMemo}=React;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   REPUBLIC OF VINDEX NATION — DEPARTMENT OF DEFENSE
+   The Republic's armed forces, modelled on the Empire's War Office but under a
+   republic's chain of command: the President is Commander-in-Chief, the
+   Secretary of Defense runs the Department, and the Joint Chiefs command the
+   services. Shares the backend under vx_dod* keys and the shared account.
+
+   Command authority is read, never re-entered: the President, the Vice
+   President and the Secretary of Defense are recognised from their appointments
+   on vindex.html (vxRole, and the Cabinet post in vx_gov). Every other
+   appointment — the Deputy Secretary, the Chairman, the service chiefs, and the
+   whole roster — is made here, inside the Department.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const V={
+  bg:"#0b1930",bg2:"#102344",panel:"#13294e",panel2:"#1a3560",line:"#24406e",lineL:"#3a5a94",
+  text:"#e8ebf2",textD:"#93a4c3",textDD:"#4d648f",
+  gold:"#c9a05a",goldL:"#e2c078",navy:"#0e1f42",
+  red:"#c03038",redD:"#7a1c22",redL:"#e08080",green:"#2e8b3d",greenL:"#63c74d",
+};
+
+function uid(){return Date.now()+"_"+Math.random().toString(36).slice(2,8);}
+const lc=s=>String(s||"").toLowerCase();
+function fmtDate(d){if(d===undefined||d===null||d==="")return "—";const s=(typeof d==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(d))?d+"T12:00:00":d;const t=typeof s==="number"?s:new Date(s).getTime();if(isNaN(t))return ""+d;return new Date(t).toLocaleDateString("en-US",{month:"short",day:"2-digit",year:"numeric"});}
+function mcFace(n){return "https://mc-heads.net/avatar/"+encodeURIComponent(n||"")+"/128";}
+
+/* ── backend (shared session) ────────────────────────────────────────────── */
+const API="https://lech-backend.onrender.com";
+let AUTH_TOKEN=null;
+const SESSION_KEY="lech_session",SESSION_ACC_KEY="lech_session_acc";
+function saveSession(t,acc){try{if(t)localStorage.setItem(SESSION_KEY,t);if(acc)localStorage.setItem(SESSION_ACC_KEY,JSON.stringify(acc));}catch(e){}}
+function clearSession(){try{localStorage.removeItem(SESSION_KEY);localStorage.removeItem(SESSION_ACC_KEY);}catch(e){}AUTH_TOKEN=null;}
+function forgetSession(){const t=AUTH_TOKEN;clearSession();try{if(t)fetch(API+"/api/logout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:t})});}catch(e){}}
+async function srestore(){let t=null;try{t=localStorage.getItem(SESSION_KEY);}catch(e){}if(!t)return null;AUTH_TOKEN=t;try{const r=await fetch(API+"/api/me?token="+encodeURIComponent(t));const d=await r.json();if(d&&d.ok&&d.account){saveSession(t,d.account);return d.account;}clearSession();return null;}catch(e){return null;}}
+async function sgetAll(){try{const r=await fetch(API+"/api/data"+(AUTH_TOKEN?"?token="+encodeURIComponent(AUTH_TOKEN):""));const d=await r.json();return (d&&d.ok)?(d.data||{}):{};}catch{return{};}}
+async function sset(k,v){try{const r=await fetch(API+"/api/set",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:AUTH_TOKEN,key:k,value:v})});const d=await r.json();return (d&&d.ok)?{ok:true}:{ok:false,error:(d&&d.error)||"Refused."};}catch{return {ok:false,error:"Connection error."};}}
+async function slogin(username,password){try{const r=await fetch(API+"/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:String(username||"").trim(),password})});const d=await r.json();if(d&&d.ok){AUTH_TOKEN=d.token;saveSession(d.token,d.account);return {ok:true,account:d.account};}return {ok:false,error:(d&&d.error)||"ACCESS DENIED"};}catch(e){return {ok:false,error:"Connection error"};}}
+
+/* ── the services ─────────────────────────────────────────────────────────── */
+const BRANCHES=[
+  {v:"VA", l:"Vindex Army", short:"Army", color:"#6a8a4a", seal:"vnarmy.png"},
+  {v:"VN", l:"Vindex Navy", short:"Navy", color:"#4a6a9a", seal:"vnnavy.png"},
+];
+// A formation may answer to neither service alone. "Joint" exists in the order of
+// battle only — nobody serves in it, so it is not a branch anyone can enlist into.
+const ORBAT_BRANCHES=[...BRANCHES,{v:"JOINT",l:"Joint",short:"Joint",color:"#9a7ab0",seal:null}];
+const branchOf=v=>ORBAT_BRANCHES.find(b=>b.v===v)||BRANCHES[0];
+
+const ARMY_RANKS=[
+  {grade:"E-1",title:"Private",abbr:"PVT",group:"Enlisted"},
+  {grade:"E-2",title:"Private First Class",abbr:"PFC",group:"Enlisted"},
+  {grade:"E-4",title:"Specialist",abbr:"SPC",group:"Enlisted"},
+  {grade:"E-5",title:"Sergeant",abbr:"SGT",group:"NCO"},
+  {grade:"E-6",title:"Staff Sergeant",abbr:"SSG",group:"NCO"},
+  {grade:"E-7",title:"Sergeant First Class",abbr:"SFC",group:"NCO"},
+  {grade:"E-8",title:"Master Sergeant",abbr:"MSG",group:"Senior NCO"},
+  {grade:"E-9",title:"Sergeant Major",abbr:"SGM",group:"Senior NCO"},
+  {grade:"O-1",title:"Second Lieutenant",abbr:"2LT",group:"Officer"},
+  {grade:"O-2",title:"First Lieutenant",abbr:"1LT",group:"Officer"},
+  {grade:"O-3",title:"Captain",abbr:"CPT",group:"Officer"},
+  {grade:"O-4",title:"Major",abbr:"MAJ",group:"Field Officer"},
+  {grade:"O-5",title:"Lieutenant Colonel",abbr:"LTC",group:"Field Officer"},
+  {grade:"O-6",title:"Colonel",abbr:"COL",group:"Field Officer"},
+  {grade:"O-7",title:"Brigadier General",abbr:"BG",group:"General Officer"},
+  {grade:"O-8",title:"Major General",abbr:"MG",group:"General Officer"},
+  {grade:"O-9",title:"Lieutenant General",abbr:"LTG",group:"General Officer"},
+  {grade:"O-10",title:"General",abbr:"GEN",group:"General Officer"},
+];
+const NAVY_RANKS=[
+  {grade:"E-1",title:"Seaman Recruit",abbr:"SR",group:"Enlisted"},
+  {grade:"E-2",title:"Seaman Apprentice",abbr:"SA",group:"Enlisted"},
+  {grade:"E-4",title:"Petty Officer Third Class",abbr:"PO3",group:"Enlisted"},
+  {grade:"E-5",title:"Petty Officer Second Class",abbr:"PO2",group:"NCO"},
+  {grade:"E-6",title:"Petty Officer First Class",abbr:"PO1",group:"NCO"},
+  {grade:"E-7",title:"Chief Petty Officer",abbr:"CPO",group:"NCO"},
+  {grade:"E-8",title:"Senior Chief Petty Officer",abbr:"SCPO",group:"Senior NCO"},
+  {grade:"E-9",title:"Master Chief Petty Officer",abbr:"MCPO",group:"Senior NCO"},
+  {grade:"O-1",title:"Ensign",abbr:"ENS",group:"Officer"},
+  {grade:"O-2",title:"Lieutenant Junior Grade",abbr:"LTJG",group:"Officer"},
+  {grade:"O-3",title:"Lieutenant",abbr:"LT",group:"Officer"},
+  {grade:"O-4",title:"Lieutenant Commander",abbr:"LCDR",group:"Field Officer"},
+  {grade:"O-5",title:"Commander",abbr:"CDR",group:"Field Officer"},
+  {grade:"O-6",title:"Captain",abbr:"CAPT",group:"Field Officer"},
+  {grade:"O-7",title:"Rear Admiral (Lower Half)",abbr:"RDML",group:"Flag Officer"},
+  {grade:"O-8",title:"Rear Admiral",abbr:"RADM",group:"Flag Officer"},
+  {grade:"O-9",title:"Vice Admiral",abbr:"VADM",group:"Flag Officer"},
+  {grade:"O-10",title:"Admiral",abbr:"ADM",group:"Flag Officer"},
+];
+const BRANCH_RANKS={VA:ARMY_RANKS,VN:NAVY_RANKS};
+const ranksFor=b=>BRANCH_RANKS[b]||ARMY_RANKS;
+const getRank=(b,g)=>ranksFor(b).find(r=>r.grade===g)||null;
+const rankOrder=g=>{const [k,n]=String(g||"E-1").split("-");return (k==="O"?100:0)+(parseInt(n,10)||0);};
+
+/* ── readiness ────────────────────────────────────────────────────────────── */
+const DEFCON=[
+  {v:5,l:"DEFCON 5",d:"Normal peacetime readiness.",color:"#4a8a5a"},
+  {v:4,l:"DEFCON 4",d:"Heightened intelligence watch and strengthened security.",color:"#7a9a4a"},
+  {v:3,l:"DEFCON 3",d:"Forces on standby, above normal readiness.",color:"#c9a05a"},
+  {v:2,l:"DEFCON 2",d:"Armed forces ready to deploy and engage in under six hours.",color:"#d4703a"},
+  {v:1,l:"DEFCON 1",d:"Maximum readiness. Hostilities imminent or under way.",color:"#c03038"},
+];
+const defconOf=v=>DEFCON.find(d=>d.v===Number(v))||DEFCON[0];
+
+/* ── appointments made inside the Department ──────────────────────────────── */
+// `source` decides who the appointment dropdown may draw from:
+//   "civilian" — any citizen of the Republic (a civilian post)
+//   "serving"  — any serving member, of either service
+//   "branch"   — only those serving in this post's own service
+const DOD_PRINCIPALS=[
+  {v:"deputy_secretary", l:"Deputy Secretary of Defense",abbr:"DEPSECDEF",
+   note:"Second to the Secretary; acts in their absence. A civilian post.",command:true,source:"civilian"},
+  {v:"chairman_jcs",     l:"Chairman of the Joint Chiefs of Staff",abbr:"CJCS",
+   note:"Principal military adviser to the President and the Secretary. Drawn from either service.",command:true,source:"serving"},
+  {v:"chief_army",       l:"Chief of Staff of the Army",abbr:"CSA",
+   note:"Commands the Vindex Army.",command:true,branch:"VA",source:"branch"},
+  {v:"vice_chief_army",  l:"Vice Chief of Staff of the Army",abbr:"VCSA",
+   note:"Second in the Army's chain of command.",command:true,branch:"VA",source:"branch"},
+  {v:"chief_navy",       l:"Chief of Naval Operations",abbr:"CNO",
+   note:"Commands the Vindex Navy.",command:true,branch:"VN",source:"branch"},
+  {v:"vice_chief_navy",  l:"Vice Chief of Naval Operations",abbr:"VCNO",
+   note:"Second in the Navy's chain of command.",command:true,branch:"VN",source:"branch"},
+];
+
+const ASSET_CATEGORIES=[
+  {v:"vessel",  l:"Vessels",        one:"Vessel",        icon:"⚓"},
+  {v:"aircraft",l:"Aircraft",       one:"Aircraft",      icon:"✈"},
+  {v:"vehicle", l:"Ground Vehicles",one:"Ground Vehicle",icon:"🛞"},
+  {v:"install", l:"Installations",  one:"Installation",  icon:"🏛"},
+];
+const ASSET_STATUS=[
+  {v:"active",  l:"In service",   color:V.greenL},
+  {v:"reserve", l:"In reserve",   color:V.textD},
+  {v:"repair",  l:"Under repair", color:V.gold},
+  {v:"lost",    l:"Lost",         color:V.red},
+];
+const OP_STATUS=[
+  {v:"planning", l:"Planning",  color:V.textD},
+  {v:"active",   l:"Active",    color:V.greenL},
+  {v:"complete", l:"Concluded", color:"#6fa8ff"},
+  {v:"aborted",  l:"Aborted",   color:V.red},
+];
+
+/* ══════════ UI atoms ══════════ */
+function Btn({children,onClick,variant="primary",disabled,small,style:ex={}}){
+  const S={
+    primary:{background:`linear-gradient(180deg,${V.panel2},${V.navy})`,borderColor:V.lineL,color:V.text},
+    gold:{background:`linear-gradient(180deg,${V.gold},#a8823f)`,borderColor:V.goldL,color:"#1a1200"},
+    ghost:{background:"transparent",borderColor:V.line,color:V.textD},
+    danger:{background:"transparent",borderColor:V.redD,color:V.redL},
+    armed:{background:V.red,borderColor:V.red,color:"#fff"},
+  }[variant]||{};
+  return <button onClick={onClick} disabled={disabled} style={{padding:small?"5px 12px":"9px 18px",
+    fontSize:small?12.5:14,fontFamily:"'Crimson Text',serif",borderRadius:3,borderWidth:1,borderStyle:"solid",
+    cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.45:1,whiteSpace:"nowrap",...S,...ex}}>{children}</button>;
+}
+function ArmBtn({label,confirmLabel,onConfirm,small}){
+  const [a,setA]=useState(false);
+  useEffect(()=>{if(!a)return;const t=setTimeout(()=>setA(false),4000);return()=>clearTimeout(t);},[a]);
+  return a?<Btn variant="armed" small={small} onClick={()=>{setA(false);onConfirm();}}>{confirmLabel||"Confirm?"}</Btn>
+    :<Btn variant="danger" small={small} onClick={()=>setA(true)}>{label}</Btn>;
+}
+function Inp({value,onChange,placeholder,type="text",style:ex={}}){
+  return <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+    style={{width:"100%",background:V.bg2,border:`1px solid ${V.line}`,borderRadius:3,padding:"8px 12px",color:V.text,fontSize:14,outline:"none",...ex}}
+    onFocus={e=>e.target.style.borderColor=V.gold} onBlur={e=>e.target.style.borderColor=V.line}/>;
+}
+function TA({value,onChange,placeholder,rows=4}){
+  return <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={rows}
+    style={{width:"100%",background:V.bg2,border:`1px solid ${V.line}`,borderRadius:3,padding:"8px 12px",color:V.text,fontSize:14,outline:"none",resize:"vertical",lineHeight:1.7}}
+    onFocus={e=>e.target.style.borderColor=V.gold} onBlur={e=>e.target.style.borderColor=V.line}/>;
+}
+function Sel({value,onChange,options,style:ex={}}){
+  return <select value={value} onChange={e=>onChange(e.target.value)}
+    style={{width:"100%",background:V.bg2,border:`1px solid ${V.line}`,borderRadius:3,padding:"8px 12px",color:V.text,fontSize:14,outline:"none",fontFamily:"'Crimson Text',serif",...ex}}>
+    {options.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+  </select>;
+}
+function FL({children}){return <div className="mono" style={{fontSize:9,color:V.textD,letterSpacing:"0.18em",marginBottom:4,textTransform:"uppercase"}}>{children}</div>;}
+function STitle({children,color}){return <div style={{display:"flex",alignItems:"center",gap:12,margin:"1.7rem 0 1rem"}}>
+  <span className="pf" style={{fontWeight:700,fontSize:13,letterSpacing:"0.26em",textTransform:"uppercase",color:color||V.gold}}>{children}</span>
+  <span style={{flex:1,height:1,background:`linear-gradient(90deg,${V.line},transparent)`}}/></div>;}
+function Empty({children}){return <div style={{fontSize:14,color:V.textDD,fontStyle:"italic",padding:"1.2rem 0"}}>{children}</div>;}
+function Tag({children,color}){return <span className="mono" style={{fontSize:8.5,letterSpacing:"0.14em",color:color||V.textDD,
+  border:`1px solid ${(color||V.textDD)}55`,background:(color||V.textDD)+"14",borderRadius:2,padding:"2px 7px",whiteSpace:"nowrap"}}>{children}</span>;}
+function Toast({msg,color}){if(!msg)return null;return <div style={{position:"fixed",bottom:22,left:"50%",transform:"translateX(-50%)",
+  zIndex:99998,background:V.panel,border:`1px solid ${color||V.gold}`,borderRadius:3,padding:"11px 22px",color:color||V.gold,fontSize:14,boxShadow:"0 8px 26px rgba(0,0,0,.55)"}}>{msg}</div>;}
+function Overlay({label}){if(!label)return null;return <div style={{position:"fixed",inset:0,zIndex:99999,background:"rgba(6,12,26,.96)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+  <div style={{textAlign:"center"}}><div className="mono" style={{color:V.gold,fontSize:10,letterSpacing:"0.35em",marginBottom:8,animation:"pulse 1s infinite"}}>PROCESSING</div>
+  <div className="pf" style={{fontSize:17,color:V.text}}>{label}</div></div></div>;}
+function Face({account,name,size=34}){
+  const n=(account&&(account.mcName||account.username))||name||"";
+  const [ok,setOk]=useState(true);
+  if(!n||!ok)return <div style={{width:size,height:size,borderRadius:3,background:V.panel2,border:`1px solid ${V.line}`,flexShrink:0}}/>;
+  return <img src={mcFace(n)} alt="" draggable={false} onError={()=>setOk(false)}
+    style={{width:size,height:size,borderRadius:3,imageRendering:"pixelated",border:`1px solid ${V.line}`,flexShrink:0}}/>;
+}
+// Departmental and service seals. Each falls back to a star if its artwork is
+// not yet beside the page.
+function Seal({file="defense.png",size=64,color,style:ex={}}){
+  const [ok,setOk]=useState(true);
+  if(!ok||!file)return <div style={{width:size,height:size,borderRadius:"50%",border:`2px solid ${(color||V.gold)}55`,
+    display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,background:V.navy,...ex}}>
+    <span className="pf" style={{fontWeight:900,fontSize:size*0.4,color:color||V.gold}}>★</span></div>;
+  return <img src={file} alt="" draggable={false} onError={()=>setOk(false)}
+    style={{width:size,height:size,objectFit:"contain",flexShrink:0,...ex}}/>;
+}
+function RankBadge({branch,grade}){
+  const r=getRank(branch,grade);if(!r)return null;
+  const b=branchOf(branch);
+  return <span className="mono" style={{fontSize:9,letterSpacing:"0.1em",color:b.color,
+    border:`1px solid ${b.color}66`,background:b.color+"18",borderRadius:2,padding:"2px 7px",whiteSpace:"nowrap"}}>{r.abbr}</span>;
+}
+
+/* ══════════ standing ══════════ */
+const isEmperor=u=>!!u&&u.role==="emperor";
+const vxRole=u=>String((u&&u.vxRole)||"");
+const isPresident=u=>vxRole(u)==="president";
+const isVP=u=>vxRole(u)==="vice_president";
+// The Secretary of Defense is not re-appointed here — they are whoever the
+// President seated in that Cabinet post on vindex.html.
+function secDefName(gov){
+  const cab=(gov&&gov.cabinet)||{};
+  const k=Object.keys(cab).find(u=>String(cab[u]||"").trim().toLowerCase()==="secretary of defense");
+  return k?lc(k):"";
+}
+const isSecDef=(u,gov)=>!!u&&!!secDefName(gov)&&lc(u.username)===secDefName(gov);
+// The civilian direction of the Department: the Commander-in-Chief, the Vice
+// President, and the Secretary. These need no appointment inside the Department.
+const isDodPrincipalCivilian=(u,gov)=>isEmperor(u)||isPresident(u)||isVP(u)||isSecDef(u,gov);
+function principalPostOf(u,dod){
+  if(!u)return null;
+  const p=(dod&&dod.principals)||{};
+  return Object.keys(p).find(post=>lc(p[post])===lc(u.username))||null;
+}
+// Command authority: the civilian principals, plus anyone holding a principal
+// appointment made inside the Department.
+function canCommand(u,gov,dod){
+  if(isDodPrincipalCivilian(u,gov))return true;
+  const post=principalPostOf(u,dod);
+  return !!post&&!!DOD_PRINCIPALS.find(p=>p.v===post&&p.command);
+}
+// Only the civilian principals may make the Department's own appointments.
+const canAppoint=(u,gov)=>isDodPrincipalCivilian(u,gov);
+function servingRecord(u,personnel){
+  if(!u)return null;
+  return Object.values(personnel||{}).find(p=>p&&lc(p.username)===lc(u.username)&&String(p.status||"active")==="active")||null;
+}
+// Who may see the Department at all: its civilian direction, its principals, and
+// anyone on the active roster.
+function hasAccess(u,gov,dod,personnel){
+  return canCommand(u,gov,dod)||!!principalPostOf(u,dod)||!!servingRecord(u,personnel);
+}
+function titleFor(u,gov,dod,personnel){
+  if(isEmperor(u))return "System Administrator";
+  if(isPresident(u))return "Commander-in-Chief";
+  if(isVP(u))return "Vice President";
+  if(isSecDef(u,gov))return "Secretary of Defense";
+  const post=principalPostOf(u,dod);
+  if(post){const p=DOD_PRINCIPALS.find(x=>x.v===post);if(p)return p.l;}
+  const rec=servingRecord(u,personnel);
+  if(rec){const r=getRank(rec.branch,rec.grade);return (r?r.title:"Service member")+", "+branchOf(rec.branch).l;}
+  return "No standing";
+}
+
+/* ══════════ sign-in ══════════ */
+function AuthModal({onClose,onAuth}){
+  const [u,setU]=useState("");const [p,setP]=useState("");const [err,setErr]=useState("");const [busy,setBusy]=useState(false);
+  const go=async()=>{
+    if(busy)return;
+    if(!u.trim()||!p){setErr("Enter your credentials.");return;}
+    setBusy(true);setErr("");
+    const res=await slogin(u,p);
+    if(!res.ok){setErr(res.error==="ACCESS DENIED"?"Credentials rejected.":res.error);setBusy(false);return;}
+    onAuth(res.account);
+  };
+  return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
+    style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(5,10,22,.92)",display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
+    <div style={{background:V.bg2,border:`1px solid ${V.line}`,borderRadius:5,padding:"1.6rem",width:"100%",maxWidth:360}}>
+      <div className="mono" style={{fontSize:9,letterSpacing:"0.3em",color:V.gold,textAlign:"center",marginBottom:14}}>DEPARTMENT OF DEFENSE — SIGN IN</div>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        <div><FL>Username</FL><Inp value={u} onChange={setU} placeholder="Username"/></div>
+        <div><FL>Password</FL><Inp value={p} onChange={setP} type="password" placeholder="Password"/></div>
+        {err&&<div style={{fontSize:13,color:V.redL,textAlign:"center"}}>{err}</div>}
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <Btn small variant="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn small variant="gold" disabled={busy} onClick={go}>{busy?"Signing in…":"Sign In"}</Btn>
+        </div>
+        <div style={{fontSize:11.5,color:V.textDD,fontStyle:"italic",textAlign:"center",lineHeight:1.6}}>
+          One account for the whole network — register on the <a href="index.html" style={{color:V.goldL}}>Vintranet</a>.
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ══════════ home ══════════ */
+function CommandCard({title,name,account,note,color,size=44}){
+  return <div style={{background:V.panel,border:`1px solid ${V.line}`,borderTop:`3px solid ${color||V.gold}`,
+    borderRadius:"0 0 4px 4px",padding:"0.9rem 1rem",display:"flex",gap:11,alignItems:"center"}}>
+    {name?<Face account={account} name={name} size={size}/>
+      :<div style={{width:size,height:size,borderRadius:3,background:V.bg2,border:`1px solid ${V.line}`,flexShrink:0}}/>}
+    <div style={{minWidth:0,flex:1}}>
+      <div className="mono" style={{fontSize:8.5,letterSpacing:"0.16em",color:color||V.gold,textTransform:"uppercase"}}>{title}</div>
+      <div className="pf" style={{fontWeight:700,fontSize:15,color:name?V.text:V.textDD,fontStyle:name?"normal":"italic",lineHeight:1.2,marginTop:2,overflowWrap:"anywhere"}}>
+        {name||"Vacant"}</div>
+      {note&&<div style={{fontSize:11.5,color:V.textDD,marginTop:3,lineHeight:1.5}}>{note}</div>}
+    </div>
+  </div>;
+}
+function HomeTab({user,gov,dod,accounts,personnel,assets,operations,commands}){
+  const dc=defconOf(dod.defcon);
+  const acct=n=>accounts[lc(n)]||null;
+  const nameOf=n=>{const a=acct(n);return a?(a.displayName||a.username):(n||"");};
+  const presidentAcc=Object.values(accounts).find(a=>vxRole(a)==="president")||null;
+  const vpAcc=Object.values(accounts).find(a=>vxRole(a)==="vice_president")||null;
+  const sd=secDefName(gov);
+  const active=Object.values(personnel||{}).filter(p=>p&&String(p.status||"active")==="active");
+  const ops=Object.values(operations||{}).filter(o=>o&&o.status==="active");
+  const ann=dod.announcement;
+  return <div className="fadeIn">
+    {/* readiness */}
+    <div style={{background:`linear-gradient(90deg,${dc.color}22,transparent)`,border:`1px solid ${dc.color}66`,
+      borderLeft:`4px solid ${dc.color}`,borderRadius:"0 4px 4px 0",padding:"0.9rem 1.2rem",marginBottom:"1.2rem",
+      display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
+      <div className="pf" style={{fontWeight:900,fontSize:20,color:dc.color,letterSpacing:"0.08em"}}>{dc.l}</div>
+      <div style={{flex:1,minWidth:200,fontSize:13.5,color:V.textD,lineHeight:1.6}}>{dc.d}</div>
+    </div>
+
+    {ann&&ann.text&&<div style={{background:V.panel,border:`1px solid ${V.gold}55`,borderLeft:`3px solid ${V.gold}`,
+      borderRadius:"0 4px 4px 0",padding:"0.9rem 1.1rem",marginBottom:"1.2rem"}}>
+      <div className="mono" style={{fontSize:8.5,letterSpacing:"0.18em",color:V.goldL,marginBottom:5}}>FROM THE SECRETARY</div>
+      <div style={{fontSize:14,color:V.text,lineHeight:1.75,whiteSpace:"pre-wrap"}}>{ann.text}</div>
+      {ann.at&&<div className="mono" style={{fontSize:9,color:V.textDD,marginTop:6}}>{fmtDate(ann.at).toUpperCase()}{ann.byName?" · "+ann.byName.toUpperCase():""}</div>}
+    </div>}
+
+    <div style={{textAlign:"center",padding:"0.4rem 0 0.6rem"}}>
+      <Seal size={92} style={{margin:"0 auto 0.8rem",display:"block"}}/>
+      <div className="pf" style={{fontWeight:900,fontSize:26,color:V.text,letterSpacing:"0.03em"}}>Department of Defense</div>
+      <div style={{fontSize:15,color:V.textD,fontStyle:"italic",marginTop:7,maxWidth:640,margin:"7px auto 0",lineHeight:1.75}}>
+        The armed forces of the Republic — the Army and the Navy — under the civilian
+        direction of the Secretary of Defense and the command of the President.
+      </div>
+    </div>
+
+    <STitle>National Command Authority</STitle>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:10}}>
+      <CommandCard title="Commander-in-Chief" color={V.goldL} account={presidentAcc}
+        name={presidentAcc?(presidentAcc.displayName||presidentAcc.username):""}
+        note="The President of Vindex Nation."/>
+      <CommandCard title="Vice President" color="#6fa8ff" account={vpAcc}
+        name={vpAcc?(vpAcc.displayName||vpAcc.username):""}
+        note="Second in the chain of civilian authority."/>
+      <CommandCard title="Secretary of Defense" color={V.goldL} account={acct(sd)} name={sd?nameOf(sd):""}
+        note="Appointed to the Cabinet by the President."/>
+    </div>
+
+    <STitle>The Joint Staff</STitle>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:10}}>
+      {DOD_PRINCIPALS.map(p=>{
+        const holder=((dod.principals||{})[p.v])||"";
+        return <CommandCard key={p.v} title={p.l} color={p.branch?branchOf(p.branch).color:V.gold}
+          account={acct(holder)} name={holder?nameOf(holder):""} note={p.note} size={38}/>;
+      })}
+    </div>
+
+    <STitle>The Department at a Glance</STitle>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10}}>
+      {[["Serving personnel",active.length,V.goldL],
+        ["Commands",Object.keys(commands||{}).length,"#6fa8ff"],
+        ["Assets on strength",Object.keys(assets||{}).length,V.textD],
+        ["Operations active",ops.length,ops.length?V.greenL:V.textD]].map(([l,n,c])=>(
+        <div key={l} style={{background:V.panel,border:`1px solid ${V.line}`,borderTop:`2px solid ${c}`,
+          borderRadius:"0 0 3px 3px",padding:"0.85rem 1rem"}}>
+          <div className="pf" style={{fontWeight:900,fontSize:22,color:c,lineHeight:1.1}}>{n}</div>
+          <div className="mono" style={{fontSize:8,letterSpacing:"0.16em",color:V.textDD,marginTop:4,textTransform:"uppercase"}}>{l}</div>
+        </div>))}
+    </div>
+
+    <STitle>The Services</STitle>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))",gap:10}}>
+      {BRANCHES.map(b=>{
+        const n=active.filter(p=>p.branch===b.v).length;
+        const chiefPost=DOD_PRINCIPALS.find(p=>p.branch===b.v);
+        const chief=chiefPost?((dod.principals||{})[chiefPost.v]||""):"";
+        return <div key={b.v} style={{background:V.panel,border:`1px solid ${V.line}`,borderTop:`3px solid ${b.color}`,
+          borderRadius:"0 0 4px 4px",padding:"1rem 1.1rem",display:"flex",gap:12,alignItems:"center"}}>
+          <Seal file={b.seal} color={b.color} size={46}/>
+          <div style={{minWidth:0,flex:1}}>
+            <div className="pf" style={{fontWeight:700,fontSize:16,color:V.text}}>{b.l}</div>
+            <div className="mono" style={{fontSize:9,letterSpacing:"0.16em",color:b.color,marginTop:3}}>{b.short.toUpperCase()}</div>
+            <div style={{fontSize:13,color:V.textD,marginTop:6,lineHeight:1.6}}>
+              {n} serving · {chief?nameOf(chief):"no chief appointed"}
+            </div>
+          </div>
+        </div>;
+      })}
+    </div>
+  </div>;
+}
+
+/* ══════════ personnel ══════════ */
+function PersonnelTab({user,gov,dod,personnel,commands,accounts,citizens,canManage,onAction,notify,setProcessing}){
+  const [q,setQ]=useState("");const [branch,setBranch]=useState("");const [showDischarged,setShowDischarged]=useState(false);
+  const [adding,setAdding]=useState(false);const [editId,setEditId]=useState(null);
+  const cmdName=id=>{const c=(commands||{})[id];return c?c.name:"";};
+  const list=Object.values(personnel||{})
+    .filter(p=>p&&(showDischarged||String(p.status||"active")==="active"))
+    .filter(p=>!branch||p.branch===branch)
+    .filter(p=>{const s=lc(q);return !s||lc(p.name).includes(s)||lc(p.username).includes(s)||lc(cmdName(p.command)).includes(s);})
+    .sort((a,b)=>rankOrder(b.grade)-rankOrder(a.grade)||String(a.name||"").localeCompare(String(b.name||"")));
+  return <div className="fadeIn">
+    <STitle>Personnel</STitle>
+    <div style={{fontSize:13.5,color:V.textD,fontStyle:"italic",lineHeight:1.7,marginBottom:12}}>
+      The service record of every member of the armed forces. Enlistment, promotion and discharge are
+      recorded here by the Department's command staff.
+    </div>
+    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:12}}>
+      <div style={{flex:2,minWidth:180}}><Inp value={q} onChange={setQ} placeholder="Search by name, account or command…"/></div>
+      <div style={{flex:1,minWidth:150}}><Sel value={branch} onChange={setBranch}
+        options={[{v:"",l:"All services"},...BRANCHES.map(b=>({v:b.v,l:b.l}))]}/></div>
+      <Btn small variant="ghost" onClick={()=>setShowDischarged(s=>!s)}>{showDischarged?"Hide discharged":"Show discharged"}</Btn>
+      {canManage&&<Btn small variant="gold" onClick={()=>{setAdding(true);setEditId(null);}}>+ Enlist</Btn>}
+    </div>
+
+    {adding&&<PersonnelForm accounts={accounts} citizens={citizens} personnel={personnel} commands={commands}
+      onClose={()=>setAdding(false)} onAction={onAction} notify={notify} setProcessing={setProcessing}/>}
+
+    {list.length===0?<Empty>No personnel on the roll.</Empty>
+      :<div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {list.map(p=><PersonRow key={p.id} person={p} accounts={accounts} commands={commands} canManage={canManage}
+          expanded={editId===p.id} onToggle={()=>setEditId(editId===p.id?null:p.id)}
+          onAction={onAction} notify={notify} setProcessing={setProcessing}/>)}
+      </div>}
+  </div>;
+}
+function PersonRow({person,accounts,commands,canManage,expanded,onToggle,onAction,notify,setProcessing}){
+  const b=branchOf(person.branch);const r=getRank(person.branch,person.grade);
+  const acc=accounts[lc(person.username)]||null;
+  const discharged=String(person.status||"active")!=="active";
+  const cmd=(commands||{})[person.command];
+  return <div style={{background:V.panel,border:`1px solid ${V.line}`,borderLeft:`3px solid ${discharged?V.line:b.color}`,
+    borderRadius:"0 4px 4px 0",opacity:discharged?0.62:1}}>
+    <div onClick={onToggle} style={{padding:"0.7rem 1rem",display:"flex",gap:11,alignItems:"center",flexWrap:"wrap",cursor:"pointer"}}>
+      <Face account={acc} name={person.username} size={34}/>
+      <div style={{flex:1,minWidth:150}}>
+        <div style={{display:"flex",gap:8,alignItems:"baseline",flexWrap:"wrap"}}>
+          <span className="pf" style={{fontWeight:700,fontSize:15,color:V.text}}>{person.name||person.username}</span>
+          <RankBadge branch={person.branch} grade={person.grade}/>
+          {discharged&&<Tag color={V.textDD}>DISCHARGED</Tag>}
+        </div>
+        <div className="mono" style={{fontSize:9.5,color:V.textDD,marginTop:2}}>
+          {r?r.title.toUpperCase():""}{cmd?" · "+String(cmd.name).toUpperCase():""}
+        </div>
+      </div>
+      <span className="mono" style={{fontSize:9,color:b.color}}>{b.short.toUpperCase()}</span>
+      <span style={{color:V.textDD,fontSize:12}}>{expanded?"▲":"▼"}</span>
+    </div>
+    {expanded&&<div style={{borderTop:`1px solid ${V.line}`,padding:"1rem"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:12}}>
+        {[["Account","@"+(person.username||"—")],["Service",b.l],["Rank",r?r.title+" ("+r.grade+")":"—"],
+          ["Command",cmd?cmd.name:"—"],["Enlisted",person.enlisted?fmtDate(person.enlisted):"—"]].map(([k,v])=>(
+          <div key={k}><div className="mono" style={{fontSize:8,letterSpacing:"0.16em",color:V.textDD,textTransform:"uppercase"}}>{k}</div>
+            <div style={{fontSize:13.5,color:V.text,marginTop:2}}>{v}</div></div>))}
+      </div>
+      {person.notes&&<div style={{fontSize:13,color:V.textD,fontStyle:"italic",lineHeight:1.7,marginBottom:12}}>{person.notes}</div>}
+      {(person.history||[]).length>0&&<div style={{marginBottom:12}}>
+        <FL>Service record</FL>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          {(person.history||[]).slice().reverse().map((h,i)=>(
+            <div key={i} style={{fontSize:12.5,color:V.textD,display:"flex",gap:10}}>
+              <span className="mono" style={{fontSize:9.5,color:V.textDD,flexShrink:0,width:88}}>{fmtDate(h.at).toUpperCase()}</span>
+              <span>{h.entry}</span></div>))}
+        </div>
+      </div>}
+      {canManage&&!discharged&&<PersonnelEdit person={person} commands={commands} onAction={onAction} notify={notify} setProcessing={setProcessing}/>}
+      {canManage&&discharged&&<Btn small variant="ghost" onClick={async()=>{
+        setProcessing("Reinstating…");
+        const res=await onAction("updatePerson",{...person,status:"active",
+          history:[...(person.history||[]),{at:Date.now(),entry:"Reinstated to active service"}]});
+        setProcessing(null);notify(res.ok?"Reinstated to active service.":res.error,res.ok?V.greenL:V.redL);
+      }}>Reinstate</Btn>}
+    </div>}
+  </div>;
+}
+function PersonnelEdit({person,commands,onAction,notify,setProcessing}){
+  const [grade,setGrade]=useState(person.grade||"E-1");
+  const [command,setCommand]=useState(person.command||"");
+  const [saving,setSaving]=useState(false);
+  // A member is posted to a formation in the order of battle — their own
+  // service's, or a joint one. There are no free-text units.
+  const cmdOpts=[{v:"",l:"— Unassigned —"},...Object.values(commands||{})
+    .filter(c=>c.branch===person.branch||c.branch==="JOINT").map(c=>({v:c.id,l:c.name}))];
+  const cmdName=id=>{const c=(commands||{})[id];return c?c.name:"";};
+  return <div style={{borderTop:`1px solid ${V.line}`,paddingTop:12}}>
+    <FL>Amend the record</FL>
+    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}}>
+      <div style={{flex:1,minWidth:170}}><FL>Rank</FL>
+        <Sel value={grade} onChange={setGrade} options={ranksFor(person.branch).map(r=>({v:r.grade,l:r.grade+" — "+r.title}))}/></div>
+      <div style={{flex:1,minWidth:180}}><FL>Command</FL><Sel value={command} onChange={setCommand} options={cmdOpts}/></div>
+      <Btn small variant="gold" disabled={saving} onClick={async()=>{
+        setSaving(true);setProcessing("Amending…");
+        const hist=[...(person.history||[])];
+        if(grade!==person.grade){
+          const from=getRank(person.branch,person.grade),to=getRank(person.branch,grade);
+          const up=rankOrder(grade)>rankOrder(person.grade);
+          hist.push({at:Date.now(),entry:(up?"Promoted":"Reduced")+" to "+(to?to.title:grade)+(from?" from "+from.title:"")});
+        }
+        if(command!==(person.command||"")) hist.push({at:Date.now(),
+          entry:command?("Posted to "+cmdName(command)):"Removed from command"});
+        const res=await onAction("updatePerson",{...person,grade,command,history:hist});
+        setProcessing(null);setSaving(false);
+        notify(res.ok?"Record amended.":res.error,res.ok?V.greenL:V.redL);
+      }}>{saving?"Saving…":"Save"}</Btn>
+      <DischargeBtn person={person} onAction={onAction} notify={notify} setProcessing={setProcessing}/>
+    </div>
+  </div>;
+}
+function DischargeBtn({person,onAction,notify,setProcessing}){
+  const [reason,setReason]=useState("");
+  return <div style={{display:"flex",gap:6,alignItems:"flex-end",flexWrap:"wrap"}}>
+    <div style={{minWidth:150}}><FL>Discharge reason</FL><Inp value={reason} onChange={setReason} placeholder="Optional"/></div>
+    <ArmBtn small label="Discharge" confirmLabel="Discharge from service?" onConfirm={async()=>{
+      setProcessing("Discharging…");
+      const res=await onAction("updatePerson",{...person,status:"discharged",dischargedAt:Date.now(),
+        history:[...(person.history||[]),{at:Date.now(),entry:"Discharged from active service"+(reason.trim()?" — "+reason.trim():"")}]});
+      setProcessing(null);notify(res.ok?"Discharged from active service.":res.error,res.ok?V.textD:V.redL);
+    }}/>
+  </div>;
+}
+function PersonnelForm({accounts,citizens,personnel,commands,onClose,onAction,notify,setProcessing}){
+  const [username,setUsername]=useState("");const [branch,setBranch]=useState("VA");
+  const [grade,setGrade]=useState("E-1");
+  const [command,setCommand]=useState("");const [notes,setNotes]=useState("");const [saving,setSaving]=useState(false);
+  // Only civilians may be enlisted: citizens of the Republic who are not already
+  // serving. Anyone on the active roll is already in uniform.
+  const serving=new Set(Object.values(personnel||{})
+    .filter(p=>p&&String(p.status||"active")==="active").map(p=>lc(p.username)));
+  const pool=Object.values(accounts||{})
+    .filter(a=>citizens.has(lc(a.username))&&!serving.has(lc(a.username)))
+    .sort((a,b)=>String(a.displayName||a.username||"").localeCompare(String(b.displayName||b.username||"")));
+  const accOpts=[{v:"",l:pool.length?"— Select a civilian —":"— No eligible civilians —"},
+    ...pool.map(a=>({v:a.username,l:(a.displayName?a.displayName+" ":"")+"@"+a.username}))];
+  const cmdOpts=[{v:"",l:"— Unassigned —"},...Object.values(commands||{})
+    .filter(c=>c.branch===branch||c.branch==="JOINT").map(c=>({v:c.id,l:c.name}))];
+  useEffect(()=>{setGrade(ranksFor(branch)[0].grade);setCommand("");},[branch]);
+  return <div style={{background:V.bg2,border:`1px solid ${V.line}`,borderRadius:4,padding:"1.2rem",marginBottom:"1rem"}}>
+    <FL>Enlist a citizen into the armed forces</FL>
+    <div style={{fontSize:12,color:V.textDD,fontStyle:"italic",marginBottom:9,lineHeight:1.6}}>
+      Only citizens of the Republic who are not already serving may be enlisted. Citizenship is granted in the{" "}
+      <a href="state.html" style={{color:V.goldL}}>Department of State</a>.
+    </div>
+    <div style={{display:"flex",flexDirection:"column",gap:"0.7rem"}}>
+      <div style={{display:"flex",gap:"0.7rem",flexWrap:"wrap"}}>
+        <div style={{flex:2,minWidth:200}}><FL>Civilian</FL><Sel value={username} onChange={setUsername} options={accOpts}/></div>
+        <div style={{flex:1,minWidth:150}}><FL>Service</FL><Sel value={branch} onChange={setBranch} options={BRANCHES.map(b=>({v:b.v,l:b.l}))}/></div>
+      </div>
+      <div style={{display:"flex",gap:"0.7rem",flexWrap:"wrap"}}>
+        <div style={{flex:2,minWidth:190}}><FL>Rank</FL>
+          <Sel value={grade} onChange={setGrade} options={ranksFor(branch).map(r=>({v:r.grade,l:r.grade+" — "+r.title}))}/></div>
+        <div style={{flex:2,minWidth:180}}><FL>Command</FL><Sel value={command} onChange={setCommand} options={cmdOpts}/></div>
+      </div>
+      <div><FL>Notes</FL><TA value={notes} onChange={setNotes} rows={2} placeholder="Qualifications, remarks…"/></div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <Btn small variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn small variant="gold" disabled={!username||saving} onClick={async()=>{
+          setSaving(true);setProcessing("Enlisting…");
+          const a=accounts[lc(username)];
+          const rec={id:"dodp_"+uid(),username:lc(username),name:a?(a.displayName||a.username):username,
+            branch,grade,command,notes:notes.trim(),status:"active",enlisted:Date.now(),
+            history:[{at:Date.now(),entry:"Enlisted in the "+branchOf(branch).l}]};
+          const res=await onAction("createPerson",rec);
+          setProcessing(null);setSaving(false);
+          if(res.ok){notify(rec.name+" enlisted.",V.greenL);onClose();}else notify(res.error,V.redL);
+        }}>{saving?"Enlisting…":"Enlist"}</Btn>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ══════════ commands (order of battle) ══════════ */
+function CommandsTab({commands,personnel,canManage,onAction,notify,setProcessing}){
+  const [adding,setAdding]=useState(false);
+  const all=Object.values(commands||{});
+  const roots=all.filter(c=>!c.parent||!commands[c.parent]);
+  const childrenOf=id=>all.filter(c=>c.parent===id);
+  const strength=id=>Object.values(personnel||{}).filter(p=>p&&p.command===id&&String(p.status||"active")==="active").length;
+  const Node=({cmd,depth})=>{
+    const b=branchOf(cmd.branch);const kids=childrenOf(cmd.id);
+    return <div style={{marginLeft:depth?18:0,borderLeft:depth?`1px solid ${V.line}`:"none",paddingLeft:depth?12:0}}>
+      <div style={{background:V.panel,border:`1px solid ${V.line}`,borderLeft:`3px solid ${b.color}`,
+        borderRadius:"0 4px 4px 0",padding:"0.7rem 1rem",marginBottom:6,display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:160}}>
+          <div className="pf" style={{fontWeight:700,fontSize:15,color:V.text}}>{cmd.name}</div>
+          <div className="mono" style={{fontSize:9,color:V.textDD,marginTop:2}}>
+            {b.short.toUpperCase()}{cmd.type?" · "+String(cmd.type).toUpperCase():""} · {strength(cmd.id)} SERVING
+          </div>
+        </div>
+        {cmd.note&&<span style={{fontSize:12,color:V.textDD,fontStyle:"italic",flex:1,minWidth:140}}>{cmd.note}</span>}
+        {canManage&&<ArmBtn small label="Disband" confirmLabel="Disband this command?" onConfirm={async()=>{
+          setProcessing("Disbanding…");
+          const res=await onAction("deleteCommand",{id:cmd.id});
+          setProcessing(null);notify(res.ok?"Command disbanded.":res.error,res.ok?V.textD:V.redL);
+        }}/>}
+      </div>
+      {kids.map(k=><Node key={k.id} cmd={k} depth={depth+1}/>)}
+    </div>;
+  };
+  return <div className="fadeIn">
+    <STitle>Order of Battle</STitle>
+    <div style={{fontSize:13.5,color:V.textD,fontStyle:"italic",lineHeight:1.7,marginBottom:12}}>
+      Every formation of the armed forces, and the chain each answers to.
+    </div>
+    {canManage&&<div style={{marginBottom:12}}>
+      {adding?<CommandForm commands={commands} onClose={()=>setAdding(false)} onAction={onAction} notify={notify} setProcessing={setProcessing}/>
+        :<Btn small variant="gold" onClick={()=>setAdding(true)}>+ Raise a command</Btn>}
+    </div>}
+    {all.length===0?<Empty>No commands have been raised.</Empty>:roots.map(c=><Node key={c.id} cmd={c} depth={0}/>)}
+  </div>;
+}
+function CommandForm({commands,onClose,onAction,notify,setProcessing}){
+  const [name,setName]=useState("");const [branch,setBranch]=useState("VA");
+  const [type,setType]=useState("");const [parent,setParent]=useState("");const [note,setNote]=useState("");
+  const [saving,setSaving]=useState(false);
+  const parentOpts=[{v:"",l:"— Reports to no one (top level) —"},...Object.values(commands||{}).map(c=>({v:c.id,l:c.name}))];
+  return <div style={{background:V.bg2,border:`1px solid ${V.line}`,borderRadius:4,padding:"1.2rem"}}>
+    <FL>Raise a command</FL>
+    <div style={{display:"flex",flexDirection:"column",gap:"0.7rem"}}>
+      <div style={{display:"flex",gap:"0.7rem",flexWrap:"wrap"}}>
+        <div style={{flex:2,minWidth:200}}><FL>Name</FL><Inp value={name} onChange={setName} placeholder="e.g. 1st Infantry Division"/></div>
+        <div style={{flex:1,minWidth:150}}><FL>Service</FL><Sel value={branch} onChange={setBranch} options={ORBAT_BRANCHES.map(b=>({v:b.v,l:b.l}))}/></div>
+      </div>
+      <div style={{display:"flex",gap:"0.7rem",flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:150}}><FL>Type</FL><Inp value={type} onChange={setType} placeholder="e.g. Division, Fleet, Joint Command"/></div>
+        <div style={{flex:2,minWidth:200}}><FL>Reports to</FL><Sel value={parent} onChange={setParent} options={parentOpts}/></div>
+      </div>
+      <div><FL>Note</FL><Inp value={note} onChange={setNote} placeholder="Role or station"/></div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <Btn small variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn small variant="gold" disabled={!name.trim()||saving} onClick={async()=>{
+          setSaving(true);setProcessing("Raising…");
+          const res=await onAction("createCommand",{id:"dodc_"+uid(),name:name.trim(),branch,type:type.trim(),parent,note:note.trim(),created:Date.now()});
+          setProcessing(null);setSaving(false);
+          if(res.ok){notify("Command raised.",V.greenL);onClose();}else notify(res.error,V.redL);
+        }}>{saving?"Raising…":"Raise"}</Btn>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ══════════ assets ══════════ */
+function AssetsTab({assets,commands,canManage,onAction,notify,setProcessing}){
+  const [cat,setCat]=useState("vessel");const [adding,setAdding]=useState(false);
+  const list=Object.values(assets||{}).filter(a=>a&&(a.category||"vessel")===cat)
+    .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")));
+  return <div className="fadeIn">
+    <STitle>Assets on Strength</STitle>
+    <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+      {ASSET_CATEGORIES.map(c=>(
+        <button key={c.v} onClick={()=>setCat(c.v)} className="mono"
+          style={{fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",padding:"6px 14px",borderRadius:2,cursor:"pointer",
+            background:cat===c.v?V.panel2:"transparent",border:`1px solid ${cat===c.v?V.gold:V.line}`,color:cat===c.v?V.goldL:V.textD}}>
+          {c.icon} {c.l}</button>))}
+      <span style={{flex:1}}/>
+      {canManage&&<Btn small variant="gold" onClick={()=>setAdding(a=>!a)}>+ Commission</Btn>}
+    </div>
+    {adding&&canManage&&<AssetForm cat={cat} commands={commands} onClose={()=>setAdding(false)}
+      onAction={onAction} notify={notify} setProcessing={setProcessing}/>}
+    {list.length===0?<Empty>Nothing on strength in this category.</Empty>
+      :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:8}}>
+        {list.map(a=>{
+          const b=branchOf(a.branch);const st=ASSET_STATUS.find(s=>s.v===a.status)||ASSET_STATUS[0];
+          const cmd=(commands||{})[a.command];
+          return <div key={a.id} style={{background:V.panel,border:`1px solid ${V.line}`,borderTop:`3px solid ${b.color}`,
+            borderRadius:"0 0 4px 4px",padding:"0.9rem 1rem"}}>
+            <div style={{display:"flex",gap:8,alignItems:"baseline",flexWrap:"wrap"}}>
+              <span className="pf" style={{fontWeight:700,fontSize:15,color:V.text,flex:1,minWidth:120}}>{a.name}</span>
+              <Tag color={st.color}>{st.l.toUpperCase()}</Tag>
+            </div>
+            <div className="mono" style={{fontSize:9,color:V.textDD,marginTop:4}}>
+              {a.hull?a.hull.toUpperCase()+" · ":""}{b.short.toUpperCase()}{cmd?" · "+String(cmd.name).toUpperCase():""}
+            </div>
+            {a.note&&<div style={{fontSize:12.5,color:V.textD,fontStyle:"italic",marginTop:6,lineHeight:1.6}}>{a.note}</div>}
+            {canManage&&<div style={{display:"flex",gap:6,marginTop:9,flexWrap:"wrap"}}>
+              <div style={{flex:1,minWidth:120}}>
+                <Sel value={a.status||"active"} onChange={async v=>{
+                  setProcessing("Updating…");
+                  const res=await onAction("updateAsset",{...a,status:v});
+                  setProcessing(null);notify(res.ok?"Status updated.":res.error,res.ok?V.greenL:V.redL);
+                }} options={ASSET_STATUS.map(s=>({v:s.v,l:s.l}))} style={{padding:"5px 9px",fontSize:12.5}}/>
+              </div>
+              <ArmBtn small label="Strike" confirmLabel="Strike from the list?" onConfirm={async()=>{
+                setProcessing("Striking…");
+                const res=await onAction("deleteAsset",{id:a.id});
+                setProcessing(null);notify(res.ok?"Struck from the list.":res.error,res.ok?V.textD:V.redL);
+              }}/>
+            </div>}
+          </div>;})}
+      </div>}
+  </div>;
+}
+function AssetForm({cat,commands,onClose,onAction,notify,setProcessing}){
+  const [name,setName]=useState("");const [hull,setHull]=useState("");const [branch,setBranch]=useState("VN");
+  const [command,setCommand]=useState("");const [note,setNote]=useState("");const [saving,setSaving]=useState(false);
+  const c=ASSET_CATEGORIES.find(x=>x.v===cat)||ASSET_CATEGORIES[0];
+  const cmdOpts=[{v:"",l:"— Unassigned —"},...Object.values(commands||{}).map(x=>({v:x.id,l:x.name}))];
+  return <div style={{background:V.bg2,border:`1px solid ${V.line}`,borderRadius:4,padding:"1.2rem",marginBottom:"1rem"}}>
+    <FL>Commission a {c.one.toLowerCase()}</FL>
+    <div style={{display:"flex",flexDirection:"column",gap:"0.7rem"}}>
+      <div style={{display:"flex",gap:"0.7rem",flexWrap:"wrap"}}>
+        <div style={{flex:2,minWidth:190}}><FL>Name</FL><Inp value={name} onChange={setName} placeholder={"Name of the "+c.one.toLowerCase()}/></div>
+        <div style={{flex:1,minWidth:130}}><FL>Hull / serial</FL><Inp value={hull} onChange={setHull} placeholder="e.g. VNS-04"/></div>
+      </div>
+      <div style={{display:"flex",gap:"0.7rem",flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:150}}><FL>Service</FL><Sel value={branch} onChange={setBranch} options={BRANCHES.map(b=>({v:b.v,l:b.l}))}/></div>
+        <div style={{flex:2,minWidth:180}}><FL>Command</FL><Sel value={command} onChange={setCommand} options={cmdOpts}/></div>
+      </div>
+      <div><FL>Note</FL><Inp value={note} onChange={setNote} placeholder="Class, station, remarks"/></div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <Btn small variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn small variant="gold" disabled={!name.trim()||saving} onClick={async()=>{
+          setSaving(true);setProcessing("Commissioning…");
+          const res=await onAction("createAsset",{id:"doda_"+uid(),name:name.trim(),hull:hull.trim(),category:cat,
+            branch,command,note:note.trim(),status:"active",created:Date.now()});
+          setProcessing(null);setSaving(false);
+          if(res.ok){notify("Commissioned.",V.greenL);onClose();}else notify(res.error,V.redL);
+        }}>{saving?"Commissioning…":"Commission"}</Btn>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ══════════ operations ══════════ */
+function OperationsTab({operations,commands,user,canManage,onAction,notify,setProcessing}){
+  const [adding,setAdding]=useState(false);const [openId,setOpenId]=useState(null);
+  const list=Object.values(operations||{}).sort((a,b)=>(b.created||0)-(a.created||0));
+  return <div className="fadeIn">
+    <STitle>Operations</STitle>
+    <div style={{fontSize:13.5,color:V.textD,fontStyle:"italic",lineHeight:1.7,marginBottom:12}}>
+      Operations ordered by the Department, with the running log of each.
+    </div>
+    {canManage&&<div style={{marginBottom:12}}>
+      {adding?<OperationForm commands={commands} onClose={()=>setAdding(false)} onAction={onAction} notify={notify} setProcessing={setProcessing}/>
+        :<Btn small variant="gold" onClick={()=>setAdding(true)}>+ Order an operation</Btn>}
+    </div>}
+    {list.length===0?<Empty>No operations on record.</Empty>
+      :<div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {list.map(op=>{
+          const st=OP_STATUS.find(s=>s.v===op.status)||OP_STATUS[0];
+          const b=branchOf(op.branch);const open=openId===op.id;
+          return <div key={op.id} style={{background:V.panel,border:`1px solid ${V.line}`,borderLeft:`3px solid ${st.color}`,borderRadius:"0 4px 4px 0"}}>
+            <div onClick={()=>setOpenId(open?null:op.id)} style={{padding:"0.8rem 1rem",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",cursor:"pointer"}}>
+              <div style={{flex:1,minWidth:170}}>
+                <div style={{display:"flex",gap:8,alignItems:"baseline",flexWrap:"wrap"}}>
+                  <span className="pf" style={{fontWeight:700,fontSize:15.5,color:V.text}}>{op.name}</span>
+                  <Tag color={st.color}>{st.l.toUpperCase()}</Tag>
+                </div>
+                <div className="mono" style={{fontSize:9,color:V.textDD,marginTop:3}}>
+                  {b.short.toUpperCase()}{op.start?" · "+fmtDate(op.start).toUpperCase():""}
+                </div>
+              </div>
+              <span style={{color:V.textDD,fontSize:12}}>{open?"▲":"▼"}</span>
+            </div>
+            {open&&<div style={{borderTop:`1px solid ${V.line}`,padding:"1rem"}}>
+              {op.objective&&<div style={{marginBottom:12}}>
+                <FL>Objective</FL>
+                <div style={{fontSize:13.5,color:V.text,lineHeight:1.75,whiteSpace:"pre-wrap"}}>{op.objective}</div>
+              </div>}
+              <FL>Log</FL>
+              {(op.log||[]).length===0?<div style={{fontSize:13,color:V.textDD,fontStyle:"italic"}}>Nothing logged.</div>
+                :<div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:10}}>
+                  {(op.log||[]).slice().reverse().map((e,i)=>(
+                    <div key={i} style={{fontSize:12.5,color:V.textD,display:"flex",gap:10}}>
+                      <span className="mono" style={{fontSize:9.5,color:V.textDD,flexShrink:0,width:88}}>{fmtDate(e.at).toUpperCase()}</span>
+                      <span style={{flex:1}}>{e.entry}{e.byName?<span style={{color:V.textDD,fontStyle:"italic"}}> — {e.byName}</span>:null}</span>
+                    </div>))}
+                </div>}
+              {canManage&&<OpControls op={op} user={user} onAction={onAction} notify={notify} setProcessing={setProcessing}/>}
+            </div>}
+          </div>;})}
+      </div>}
+  </div>;
+}
+function OpControls({op,user,onAction,notify,setProcessing}){
+  const [entry,setEntry]=useState("");const [saving,setSaving]=useState(false);
+  return <div style={{borderTop:`1px solid ${V.line}`,paddingTop:11,marginTop:6}}>
+    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}}>
+      <div style={{flex:2,minWidth:200}}><FL>Add to the log</FL><Inp value={entry} onChange={setEntry} placeholder="What happened…"/></div>
+      <Btn small variant="gold" disabled={!entry.trim()||saving} onClick={async()=>{
+        setSaving(true);setProcessing("Logging…");
+        const res=await onAction("updateOperation",{...op,log:[...(op.log||[]),
+          {at:Date.now(),entry:entry.trim(),by:lc(user.username),byName:user.displayName||user.username}]});
+        setProcessing(null);setSaving(false);
+        if(res.ok){setEntry("");notify("Logged.",V.greenL);}else notify(res.error,V.redL);
+      }}>Log</Btn>
+      <div style={{flex:1,minWidth:150}}><FL>Status</FL>
+        <Sel value={op.status||"planning"} onChange={async v=>{
+          setProcessing("Updating…");
+          const res=await onAction("updateOperation",{...op,status:v,
+            log:[...(op.log||[]),{at:Date.now(),entry:"Status set to "+(OP_STATUS.find(s=>s.v===v)||{l:v}).l,
+              by:lc(user.username),byName:user.displayName||user.username}]});
+          setProcessing(null);notify(res.ok?"Status updated.":res.error,res.ok?V.greenL:V.redL);
+        }} options={OP_STATUS.map(s=>({v:s.v,l:s.l}))}/></div>
+      <ArmBtn small label="Delete" confirmLabel="Delete this operation?" onConfirm={async()=>{
+        setProcessing("Deleting…");
+        const res=await onAction("deleteOperation",{id:op.id});
+        setProcessing(null);notify(res.ok?"Operation deleted.":res.error,res.ok?V.textD:V.redL);
+      }}/>
+    </div>
+  </div>;
+}
+function OperationForm({commands,onClose,onAction,notify,setProcessing}){
+  const [name,setName]=useState("");const [branch,setBranch]=useState("VA");
+  const [objective,setObjective]=useState("");const [start,setStart]=useState(new Date().toISOString().slice(0,10));
+  const [saving,setSaving]=useState(false);
+  return <div style={{background:V.bg2,border:`1px solid ${V.line}`,borderRadius:4,padding:"1.2rem"}}>
+    <FL>Order an operation</FL>
+    <div style={{display:"flex",flexDirection:"column",gap:"0.7rem"}}>
+      <div style={{display:"flex",gap:"0.7rem",flexWrap:"wrap"}}>
+        <div style={{flex:2,minWidth:190}}><FL>Name</FL><Inp value={name} onChange={setName} placeholder="e.g. Operation Meridian"/></div>
+        <div style={{flex:1,minWidth:150}}><FL>Service</FL><Sel value={branch} onChange={setBranch} options={ORBAT_BRANCHES.map(b=>({v:b.v,l:b.l}))}/></div>
+        <div style={{flex:1,minWidth:150}}><FL>Start</FL><Inp value={start} onChange={setStart} type="date"/></div>
+      </div>
+      <div><FL>Objective</FL><TA value={objective} onChange={setObjective} rows={3} placeholder="What the operation is to achieve…"/></div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <Btn small variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn small variant="gold" disabled={!name.trim()||saving} onClick={async()=>{
+          setSaving(true);setProcessing("Ordering…");
+          const res=await onAction("createOperation",{id:"dodo_"+uid(),name:name.trim(),branch,
+            objective:objective.trim(),start,status:"planning",log:[],created:Date.now()});
+          setProcessing(null);setSaving(false);
+          if(res.ok){notify("Operation ordered.",V.greenL);onClose();}else notify(res.error,V.redL);
+        }}>{saving?"Ordering…":"Order"}</Btn>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ══════════ the Secretary's panel ══════════ */
+function SecretaryTab({user,gov,dod,accounts,citizens,personnel,canAppointHere,onAction,notify,setProcessing}){
+  return <div className="fadeIn">
+    <STitle>Office of the Secretary of Defense</STitle>
+    <div style={{fontSize:13.5,color:V.textD,fontStyle:"italic",lineHeight:1.7,marginBottom:"1.2rem"}}>
+      The civilian direction of the Department. The Secretary is appointed to the Cabinet by the President
+      on the <a href="vindex.html" style={{color:V.goldL}}>government portal</a>; every appointment below is made here.
+    </div>
+    <DefconEditor dod={dod} user={user} onAction={onAction} notify={notify} setProcessing={setProcessing}/>
+    <AnnouncementEditor dod={dod} user={user} onAction={onAction} notify={notify} setProcessing={setProcessing}/>
+    {canAppointHere&&<>
+      <STitle color={V.goldL}>Appointments</STitle>
+      <div style={{fontSize:13,color:V.textD,fontStyle:"italic",lineHeight:1.7,marginBottom:10}}>
+        These posts carry command authority within the Department. The President, the Vice President and the
+        Secretary hold theirs by virtue of office and are not listed here.
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {DOD_PRINCIPALS.map(p=><PrincipalRow key={p.v} post={p} dod={dod} accounts={accounts}
+          citizens={citizens} personnel={personnel}
+          onAction={onAction} notify={notify} setProcessing={setProcessing}/>)}
+      </div>
+    </>}
+  </div>;
+}
+function DefconEditor({dod,user,onAction,notify,setProcessing}){
+  const cur=defconOf(dod.defcon);
+  return <div style={{background:V.bg2,border:`1px solid ${V.line}`,borderRadius:4,padding:"1.1rem",marginBottom:"1.1rem"}}>
+    <FL>Defence readiness condition</FL>
+    <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+      {DEFCON.map(d=>(
+        <button key={d.v} onClick={async()=>{
+          if(d.v===cur.v)return;
+          setProcessing("Setting readiness…");
+          const res=await onAction("setDefcon",{defcon:d.v,by:lc(user.username),byName:user.displayName||user.username});
+          setProcessing(null);notify(res.ok?("Readiness set to "+d.l+"."):res.error,res.ok?d.color:V.redL);
+        }} className="mono" style={{fontSize:11,letterSpacing:"0.1em",padding:"8px 16px",borderRadius:2,cursor:"pointer",
+          background:cur.v===d.v?d.color+"22":"transparent",border:`1px solid ${cur.v===d.v?d.color:V.line}`,
+          color:cur.v===d.v?d.color:V.textD,fontWeight:cur.v===d.v?700:400}}>{d.l}</button>))}
+    </div>
+    <div style={{fontSize:12.5,color:V.textDD,fontStyle:"italic",lineHeight:1.6}}>{cur.d}</div>
+  </div>;
+}
+function AnnouncementEditor({dod,user,onAction,notify,setProcessing}){
+  const [text,setText]=useState((dod.announcement&&dod.announcement.text)||"");
+  const [saving,setSaving]=useState(false);
+  return <div style={{background:V.bg2,border:`1px solid ${V.line}`,borderRadius:4,padding:"1.1rem",marginBottom:"1.1rem"}}>
+    <FL>Announcement to the Department</FL>
+    <TA value={text} onChange={setText} rows={3} placeholder="Shown at the top of the Department's home page…"/>
+    <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:8}}>
+      {(dod.announcement&&dod.announcement.text)&&<Btn small variant="ghost" disabled={saving} onClick={async()=>{
+        setSaving(true);setProcessing("Clearing…");
+        const res=await onAction("setAnnouncement",{text:""});
+        setProcessing(null);setSaving(false);
+        if(res.ok){setText("");notify("Announcement cleared.",V.textD);}else notify(res.error,V.redL);
+      }}>Clear</Btn>}
+      <Btn small variant="gold" disabled={saving||!text.trim()} onClick={async()=>{
+        setSaving(true);setProcessing("Publishing…");
+        const res=await onAction("setAnnouncement",{text:text.trim(),by:lc(user.username),byName:user.displayName||user.username});
+        setProcessing(null);setSaving(false);
+        notify(res.ok?"Announcement published.":res.error,res.ok?V.greenL:V.redL);
+      }}>{saving?"Publishing…":"Publish"}</Btn>
+    </div>
+  </div>;
+}
+function PrincipalRow({post,dod,accounts,citizens,personnel,onAction,notify,setProcessing}){
+  const cur=((dod.principals||{})[post.v])||"";
+  const [u,setU]=useState(cur);const [saving,setSaving]=useState(false);
+  useEffect(()=>{setU(cur);},[cur]);
+  // Each post draws from its own pool: a civilian post from the citizenry, a
+  // service post from that service's own people, the Chairman from either.
+  const serving=Object.values(personnel||{}).filter(p=>p&&String(p.status||"active")==="active");
+  const nameFor=un=>{const a=accounts[lc(un)];return a?((a.displayName?a.displayName+" ":"")+"@"+a.username):("@"+un);};
+  let pool=[],emptyNote="";
+  if(post.source==="civilian"){
+    pool=Object.values(accounts||{}).filter(a=>citizens.has(lc(a.username)))
+      .sort((a,b)=>String(a.displayName||a.username||"").localeCompare(String(b.displayName||b.username||"")))
+      .map(a=>({v:a.username,l:(a.displayName?a.displayName+" ":"")+"@"+a.username}));
+    emptyNote="No citizens on the register.";
+  } else {
+    const from=post.source==="branch"?serving.filter(p=>p.branch===post.branch):serving;
+    pool=from.sort((a,b)=>rankOrder(b.grade)-rankOrder(a.grade))
+      .map(p=>{const r=getRank(p.branch,p.grade);
+        return {v:p.username,l:(r?r.abbr+" ":"")+(p.name||p.username)+" — "+branchOf(p.branch).short};});
+    emptyNote=post.source==="branch"
+      ?("No one is serving in the "+branchOf(post.branch).l+" yet.")
+      :"No one is serving yet.";
+  }
+  // A holder appointed before the pool narrowed stays selectable, so they can be
+  // seen and replaced rather than silently vanishing from the list.
+  if(cur&&!pool.some(o=>lc(o.v)===lc(cur))) pool=[{v:cur,l:nameFor(cur)+" (current)"},...pool];
+  const opts=[{v:"",l:pool.length?"— Vacant —":"— "+emptyNote+" —"},...pool];
+  const b=post.branch?branchOf(post.branch):null;
+  return <div style={{background:V.panel,border:`1px solid ${V.line}`,borderLeft:`3px solid ${b?b.color:V.gold}`,
+    borderRadius:"0 3px 3px 0",padding:"0.8rem 1rem",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+    <div style={{flex:1,minWidth:180}}>
+      <div style={{display:"flex",gap:8,alignItems:"baseline",flexWrap:"wrap"}}>
+        <span className="pf" style={{fontWeight:700,fontSize:14.5,color:V.text}}>{post.l}</span>
+        {post.abbr&&<Tag color={b?b.color:V.gold}>{post.abbr}</Tag>}
+      </div>
+      <div style={{fontSize:12,color:V.textDD,fontStyle:"italic",marginTop:2,lineHeight:1.5}}>{post.note}</div>
+    </div>
+    <div style={{flex:1,minWidth:200}}><Sel value={u} onChange={setU} options={opts}/></div>
+    <Btn small variant="gold" disabled={saving||lc(u)===lc(cur)} onClick={async()=>{
+      setSaving(true);setProcessing("Appointing…");
+      const res=await onAction("setPrincipal",{post:post.v,username:lc(u)});
+      setProcessing(null);setSaving(false);
+      notify(res.ok?(u?"Appointment made.":"Post vacated."):res.error,res.ok?V.greenL:V.redL);
+    }}>{saving?"Saving…":"Appoint"}</Btn>
+  </div>;
+}
+
+/* ══════════ app ══════════ */
+function App(){
+  const [user,setUser]=useState(null);
+  const [raw,setRaw]=useState({});
+  const [loaded,setLoaded]=useState(false);
+  const [restoring,setRestoring]=useState(true);
+  const [tab,setTab]=useState("home");
+  const [authOpen,setAuthOpen]=useState(false);
+  const [toast,setToast]=useState({msg:"",color:V.gold});
+  const [processing,setProcessing]=useState(null);
+
+  const notify=useCallback((msg,color=V.gold)=>{setToast({msg,color});
+    setTimeout(()=>setToast(t=>t.msg===msg?{msg:"",color}:t),4000);},[]);
+
+  useEffect(()=>{(async()=>{
+    const acc=await srestore();
+    if(acc)setUser(acc);
+    const d=await sgetAll();
+    setRaw(d);setLoaded(true);setRestoring(false);
+  })();},[]);
+
+  const accounts=useMemo(()=>{
+    const out={};
+    Object.values(raw["mi_accounts"]||{}).forEach(a=>{if(a&&a.username)out[lc(a.username)]=a;});
+    return out;
+  },[raw]);
+  const gov=useMemo(()=>raw["vx_gov"]||{},[raw]);
+  // Only a citizen of the Republic may serve it. The roll comes from the
+  // Department of State's register, exactly as the government portal reads it.
+  const citizens=useMemo(()=>{
+    const s=new Set();
+    Object.values(raw["vx_state_citizens"]||{}).forEach(c=>{
+      if(c&&["citizen","naturalised"].includes(String(c.status||""))) s.add(lc(c.username));
+    });
+    return s;
+  },[raw]);
+  const dod=useMemo(()=>raw["vx_dod"]||{},[raw]);
+  const personnel=useMemo(()=>raw["vx_dod_personnel"]||{},[raw]);
+  const commands=useMemo(()=>raw["vx_dod_commands"]||{},[raw]);
+  const assets=useMemo(()=>raw["vx_dod_assets"]||{},[raw]);
+  const operations=useMemo(()=>raw["vx_dod_operations"]||{},[raw]);
+
+  const access=hasAccess(user,gov,dod,personnel);
+  const canManage=canCommand(user,gov,dod);
+  const canAppointHere=canAppoint(user,gov);
+  const myTitle=user?titleFor(user,gov,dod,personnel):"";
+
+  const onAction=useCallback(async(type,p)=>{
+    const putMap=async(key,next)=>{
+      const res=await sset(key,next);
+      if(res.ok)setRaw(r=>({...r,[key]:next}));
+      return res;
+    };
+    const putDod=async(next)=>{
+      const res=await sset("vx_dod",next);
+      if(res.ok)setRaw(r=>({...r,vx_dod:next}));
+      return res;
+    };
+    if(type==="createPerson"||type==="updatePerson"){
+      const rec=type==="createPerson"?p:p;
+      return await putMap("vx_dod_personnel",{...personnel,[rec.id]:rec});
+    }
+    if(type==="createCommand") return await putMap("vx_dod_commands",{...commands,[p.id]:p});
+    if(type==="deleteCommand"){
+      const next={...commands};delete next[p.id];
+      // Anything reporting to it is detached rather than silently orphaned.
+      Object.keys(next).forEach(k=>{if(next[k].parent===p.id)next[k]={...next[k],parent:""};});
+      return await putMap("vx_dod_commands",next);
+    }
+    if(type==="createAsset"||type==="updateAsset") return await putMap("vx_dod_assets",{...assets,[p.id]:p});
+    if(type==="deleteAsset"){const next={...assets};delete next[p.id];return await putMap("vx_dod_assets",next);}
+    if(type==="createOperation"||type==="updateOperation") return await putMap("vx_dod_operations",{...operations,[p.id]:p});
+    if(type==="deleteOperation"){const next={...operations};delete next[p.id];return await putMap("vx_dod_operations",next);}
+    if(type==="setDefcon") return await putDod({...dod,defcon:p.defcon,defconSetBy:p.byName,defconAt:Date.now()});
+    if(type==="setAnnouncement") return await putDod({...dod,announcement:p.text?{text:p.text,at:Date.now(),by:p.by,byName:p.byName}:null});
+    if(type==="setPrincipal"){
+      const next={...(dod.principals||{})};
+      if(p.username)next[p.post]=p.username;else delete next[p.post];
+      return await putDod({...dod,principals:next});
+    }
+    return {ok:false,error:"Unknown action."};
+  },[dod,personnel,commands,assets,operations]);
+
+  const TABS=[
+    {v:"home",l:"The Department"},
+    ...(access?[{v:"personnel",l:"Personnel"},{v:"commands",l:"Order of Battle"},
+      {v:"assets",l:"Assets"},{v:"operations",l:"Operations"}]:[]),
+    ...(canAppointHere||canManage?[{v:"secretary",l:"Secretary's Office"}]:[]),
+  ];
+  useEffect(()=>{if(!TABS.find(t=>t.v===tab))setTab("home");},[access,canManage,canAppointHere]);
+
+  return <div style={{minHeight:"100vh",background:`radial-gradient(ellipse 80% 45% at 50% -5%, #1c3a6e55, transparent 60%), ${V.bg}`}}>
+    <Toast msg={toast.msg} color={toast.color}/>
+    <Overlay label={processing}/>
+    {authOpen&&<AuthModal onClose={()=>setAuthOpen(false)} onAuth={async acc=>{
+      setUser(acc);setAuthOpen(false);
+      const d=await sgetAll();setRaw(d);
+      notify("Signed in as "+(acc.displayName||acc.username)+".",V.goldL);
+    }}/>}
+
+    <div style={{background:`linear-gradient(180deg,${V.navy},${V.bg2})`,borderBottom:`2px solid ${V.gold}55`}}>
+      <div style={{maxWidth:1080,margin:"0 auto",padding:"0.8rem 1.2rem",display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+        <a href="vindex.html" className="mono" style={{fontSize:8,letterSpacing:"0.1em",color:V.textD,textDecoration:"none",
+          border:`1px solid ${V.line}`,borderRadius:2,padding:"4px 9px",flexShrink:0}}>← GOV PORTAL</a>
+        <Seal size={44}/>
+        <div style={{flex:1,minWidth:170}}>
+          <div className="pf" style={{fontWeight:900,fontSize:16.5,letterSpacing:"0.05em",color:V.text,lineHeight:1.1}}>Department of Defense</div>
+          <div className="mono" style={{fontSize:8,letterSpacing:"0.3em",color:V.gold,marginTop:2}}>REPUBLIC OF VINDEX NATION · SI VIS PACEM</div>
+        </div>
+        {user?<div style={{display:"flex",alignItems:"center",gap:10}}>
+          <Face account={user} size={30}/>
+          <div style={{textAlign:"right",lineHeight:1.25}}>
+            <div className="pf" style={{fontWeight:700,fontSize:12.5,color:V.text}}>{user.displayName||user.username}</div>
+            <div className="mono" style={{fontSize:7.5,letterSpacing:"0.14em",color:access?V.goldL:V.textDD}}>{myTitle.toUpperCase()}</div>
+          </div>
+          <Btn small variant="ghost" onClick={()=>{forgetSession();setUser(null);setTab("home");notify("Signed out.",V.textD);}}>Sign out</Btn>
+        </div>:<Btn small variant="gold" onClick={()=>setAuthOpen(true)}>Sign In</Btn>}
+      </div>
+      <div style={{maxWidth:1080,margin:"0 auto",padding:"0 1.2rem",display:"flex",overflowX:"auto"}}>
+        {TABS.map(t=>(<button key={t.v} onClick={()=>setTab(t.v)} className="pf"
+          style={{fontWeight:700,fontSize:11.5,letterSpacing:"0.12em",textTransform:"uppercase",padding:"0.7rem 1rem",
+            background:"transparent",border:"none",cursor:"pointer",whiteSpace:"nowrap",
+            borderBottom:`3px solid ${tab===t.v?V.gold:"transparent"}`,color:tab===t.v?V.goldL:V.textD}}>{t.l}</button>))}
+      </div>
+    </div>
+
+    <div style={{maxWidth:1080,margin:"0 auto",padding:"1.6rem 1.2rem 3rem"}}>
+      {(!loaded||restoring)&&<div style={{textAlign:"center",padding:"4rem"}}>
+        <div className="mono" style={{fontSize:10,letterSpacing:"0.35em",color:V.textDD,animation:"pulse 1.4s infinite"}}>LOADING…</div></div>}
+      {loaded&&!restoring&&<>
+        {tab==="home"&&<HomeTab user={user} gov={gov} dod={dod} accounts={accounts} personnel={personnel}
+          assets={assets} operations={operations} commands={commands}/>}
+        {tab==="personnel"&&access&&<PersonnelTab user={user} gov={gov} dod={dod} personnel={personnel} commands={commands}
+          accounts={accounts} citizens={citizens} canManage={canManage} onAction={onAction} notify={notify} setProcessing={setProcessing}/>}
+        {tab==="commands"&&access&&<CommandsTab commands={commands} personnel={personnel} canManage={canManage}
+          onAction={onAction} notify={notify} setProcessing={setProcessing}/>}
+        {tab==="assets"&&access&&<AssetsTab assets={assets} commands={commands} canManage={canManage}
+          onAction={onAction} notify={notify} setProcessing={setProcessing}/>}
+        {tab==="operations"&&access&&<OperationsTab operations={operations} commands={commands} user={user}
+          canManage={canManage} onAction={onAction} notify={notify} setProcessing={setProcessing}/>}
+        {tab==="secretary"&&(canAppointHere||canManage)&&<SecretaryTab user={user} gov={gov} dod={dod} accounts={accounts}
+          citizens={citizens} personnel={personnel} canAppointHere={canAppointHere}
+          onAction={onAction} notify={notify} setProcessing={setProcessing}/>}
+
+        {!user&&<div style={{background:V.panel,border:`1px solid ${V.line}`,borderRadius:4,padding:"1.1rem 1.2rem",marginTop:"1.6rem"}}>
+          <div style={{fontSize:13.5,color:V.textD,fontStyle:"italic",lineHeight:1.7}}>
+            Sign in to see the Department's personnel, order of battle, assets and operations.
+          </div>
+        </div>}
+        {user&&!access&&<div style={{background:V.panel,border:`1px solid ${V.line}`,borderRadius:4,padding:"1.1rem 1.2rem",marginTop:"1.6rem"}}>
+          <div style={{fontSize:13.5,color:V.textD,fontStyle:"italic",lineHeight:1.7}}>
+            You hold no appointment in the Department of Defense. Its records are open to the National Command
+            Authority, the Joint Staff, and those serving in the armed forces.
+          </div>
+        </div>}
+      </>}
+    </div>
+
+    <div style={{borderTop:`1px solid ${V.line}`,padding:"1.1rem 1.2rem 1.5rem"}}>
+      <div style={{maxWidth:1080,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+        <div className="mono" style={{fontSize:8.5,letterSpacing:"0.26em",color:V.textDD}}>DEPARTMENT OF DEFENSE · REPUBLIC OF VINDEX NATION</div>
+        <div className="mono" style={{fontSize:8.5,letterSpacing:"0.2em",color:V.textDD}}>
+          <a href="vindex.html" style={{color:V.textD,textDecoration:"none"}}>GOVERNMENT PORTAL</a>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Vintranet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   VINTRANET
+   The way in to the three national networks. It belongs to no one government, so
+   it wears none of their liveries — cream stock, a fine serif, double rules and
+   letterspaced caps: the register of a printed treaty rather than of any one
+   crown. Each nation is presented by its arms and its name, and nothing else.
+   Self-contained but for the three coats of arms, each of which falls back to a
+   glyph if the file is not beside this page.
+   ═══════════════════════════════════════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+
+:root{
+  --paper:#f5f0e6; --paperD:#ede6d8;
+  --ink:#201d18; --ink2:#544c40; --ink3:#8a7c68;
+  --rule:#c3b8a4; --ruleD:#a89880;
+  --seal:#6d2a2a;
+}
+
+html{-webkit-text-size-adjust:100%;}
+body{
+  min-height:100vh;display:flex;flex-direction:column;
+  font-family:Spectral,Georgia,'Times New Roman',serif;
+  color:var(--ink);
+  /* Laid stock: a faint warm grain, and the page a shade lighter at the centre. */
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 0%, rgba(255,255,255,.55), transparent 70%),
+    repeating-linear-gradient(0deg, rgba(140,120,86,.018) 0 1px, transparent 1px 4px),
+    var(--paper);
+}
+
+.sheet{max-width:960px;margin:0 auto;padding:0 2rem;width:100%;}
+@media(max-width:640px){.sheet{padding:0 1.25rem;}}
+
+/* ── masthead ────────────────────────────────────────────────────────────── */
+.masthead{border-bottom:3px double var(--ink);}
+.masthead .sheet{text-align:center;padding:2.1rem 2rem 1.35rem;}
+.wordmark{font-size:clamp(1.75rem,5.6vw,2.6rem);font-weight:700;letter-spacing:.2em;
+  text-transform:uppercase;line-height:1;text-indent:.2em;}
+.masthead .meta{font-size:.6rem;font-weight:500;letter-spacing:.42em;text-transform:uppercase;
+  color:var(--ink3);margin-top:.75rem;text-indent:.42em;}
+
+/* ── lede ────────────────────────────────────────────────────────────────── */
+.lede{text-align:center;max-width:440px;margin:2.3rem auto 2.5rem;
+  font-size:1.06rem;font-style:italic;font-weight:300;color:var(--ink2);line-height:1.75;}
+
+/* ── the three nations ───────────────────────────────────────────────────── */
+.nations{display:grid;grid-template-columns:repeat(3,1fr);
+  border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);}
+.nation{display:flex;flex-direction:column;align-items:center;text-align:center;
+  padding:2.4rem 1.5rem 2.2rem;border-right:1px solid var(--rule);
+  text-decoration:none;color:inherit;transition:background .18s;}
+.nation:last-child{border-right:0;}
+a.nation:hover{background:rgba(255,255,255,.42);}
+
+/* the arms, on the stock behind a fine ring */
+.arms{position:relative;width:92px;height:92px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(circle at 50% 38%, #fffdf8, var(--paperD));
+  box-shadow:0 0 0 1px var(--ruleD), 0 0 0 5px var(--paper), 0 0 0 6px var(--rule);
+  transition:box-shadow .18s;}
+a.nation:hover .arms{box-shadow:0 0 0 1px var(--seal), 0 0 0 5px var(--paper), 0 0 0 6px var(--seal);}
+.arms img{width:74%;height:74%;object-fit:contain;}
+.arms .fb{display:none;font-size:36px;line-height:1;color:var(--seal);}
+
+/* Two lines' worth of box whether the name takes one or two, so the rules and the
+   seals below them stay on a line across all three columns. */
+.name{margin-top:1.5rem;min-height:3.3rem;display:flex;align-items:center;justify-content:center;
+  font-size:1.3rem;font-weight:600;line-height:1.25;letter-spacing:.005em;}
+.divider{width:34px;height:1px;background:var(--seal);margin:1rem 0 1.4rem;opacity:.65;}
+
+/* the seal-press button */
+.enter{font-size:.66rem;font-weight:600;letter-spacing:.26em;text-transform:uppercase;
+  color:var(--seal);border-top:1px solid var(--seal);border-bottom:1px solid var(--seal);
+  padding:7px 20px;text-indent:.26em;transition:background .18s,color .18s;}
+a.nation:hover .enter{background:var(--seal);color:var(--paper);}
+.pending{font-size:.62rem;font-weight:500;letter-spacing:.26em;text-transform:uppercase;
+  color:var(--ink3);border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);
+  padding:7px 18px;text-indent:.26em;}
+.nation.soon .arms{opacity:.62;}
+.nation.soon .name{color:var(--ink2);}
+.nation.soon .divider{background:var(--rule);}
+
+/* ── colophon ────────────────────────────────────────────────────────────── */
+.colophon{text-align:center;max-width:520px;margin:2.6rem auto 3rem;}
+.colophon .head{font-size:.58rem;font-weight:600;letter-spacing:.32em;text-transform:uppercase;
+  color:var(--ink3);text-indent:.32em;}
+.colophon p{font-size:.95rem;font-weight:300;color:var(--ink2);line-height:1.8;margin-top:.7rem;}
+
+/* ── imprint ─────────────────────────────────────────────────────────────── */
+.imprint{margin-top:auto;border-top:1px solid var(--rule);}
+.imprint .sheet{display:flex;justify-content:space-between;align-items:center;gap:18px;
+  flex-wrap:wrap;padding:1.15rem 2rem 1.4rem;}
+.imprint .who{font-size:.58rem;font-weight:600;letter-spacing:.26em;text-transform:uppercase;color:var(--ink3);}
+.powered{display:inline-flex;align-items:center;gap:10px;}
+.powered .by{font-size:.55rem;font-weight:600;letter-spacing:.24em;text-transform:uppercase;color:var(--ink3);}
+.powered img{height:30px;width:auto;object-fit:contain;}
+.powered .fb{display:none;font-size:.82rem;font-weight:600;color:var(--ink2);letter-spacing:.02em;}
+
+@media(max-width:760px){
+  .nations{grid-template-columns:1fr;}
+  .nation{border-right:0;border-bottom:1px solid var(--rule);padding:2rem 1.5rem;}
+  .nation:last-child{border-bottom:0;}
+}
+</style>
+</head>
+<body>
+
+<div id="vx-auth"></div>
+
+<header class="masthead">
+  <div class="sheet">
+    <div class="wordmark">Vintranet</div>
+    <div class="meta">Intergovernmental Network</div>
+  </div>
+</header>
+
+<main class="sheet">
+
+  <p class="lede">The way in to three national networks. Select a government below to enter its own.</p>
+
+  <section class="nations">
+
+    <a class="nation" href="lech.html" aria-label="Enter the network of the Empire of Lech">
+      <span class="arms">
+        <img src="lechcoa.png" alt="Arms of the Empire of Lech"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='block';"/>
+        <span class="fb" aria-hidden="true">&#9884;</span>
+      </span>
+      <span class="name">Empire of Lech</span>
+      <span class="divider"></span>
+      <span class="enter">Enter</span>
+    </a>
+
+    <a class="nation" href="vindex.html" aria-label="Enter the network of the Republic of Vindex Nation">
+      <span class="arms">
+        <img src="vindexcoa.png" alt="Arms of the Republic of Vindex Nation"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='block';"/>
+        <span class="fb" aria-hidden="true">&#9733;</span>
+      </span>
+      <span class="name">Republic of Vindex Nation</span>
+      <span class="divider"></span>
+      <span class="enter">Enter</span>
+    </a>
+
+    <a class="nation" href="wilden.html" aria-label="Enter the network of Wilden">
+      <span class="arms">
+        <img src="wildencoa.png" alt="Arms of Wilden"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='block';"/>
+        <span class="fb" aria-hidden="true">&#9672;</span>
+      </span>
+      <span class="name">Wilden</span>
+      <span class="divider"></span>
+      <span class="enter">Enter</span>
+    </a>
+
+  </section>
+
+  <section class="colophon">
+    <div class="head">One sign-in</div>
+    <p>The three networks share accounts, so signing in on any one carries you into the
+      others. Each government still confers its own offices.</p>
+  </section>
+
+</main>
+
+<footer class="imprint">
+  <div class="sheet">
+    <div class="who">Vintranet · Intergovernmental Network</div>
+    <div class="powered">
+      <span class="by">Powered by</span>
+      <img src="vindex/saudkruger.png" alt="Saud Kruger Information Systems" draggable="false"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='inline';"/>
+      <span class="fb">Saud Kruger Information Systems</span>
+    </div>
+  </div>
+</footer>
+
+<script type="text/babel">
+const {useState,useEffect,useCallback,useMemo,useRef}=React;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VINTRANET — the intergovernmental layer.
+   The landing above is static; this adds the account layer that belongs to the
+   whole server rather than to any one nation: sign-in, public registration, and
+   the administrator's account roster (identity & possession). Each nation's own
+   permissions are still set on that nation's own service — here we only see them.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const API="https://lech-backend.onrender.com";
+let AUTH_TOKEN=null;
+const SESSION_KEY="lech_session", SESSION_ACC_KEY="lech_session_acc";
+function saveSession(t,acc){try{if(t)localStorage.setItem(SESSION_KEY,t);if(acc)localStorage.setItem(SESSION_ACC_KEY,JSON.stringify(acc));}catch(e){}}
+function cachedAccount(){try{const t=localStorage.getItem(SESSION_KEY);if(!t)return null;const a=localStorage.getItem(SESSION_ACC_KEY);if(!a)return null;AUTH_TOKEN=t;return JSON.parse(a);}catch(e){return null;}}
+function clearSession(){try{localStorage.removeItem(SESSION_KEY);localStorage.removeItem(SESSION_ACC_KEY);}catch(e){}AUTH_TOKEN=null;}
+function forgetSession(){const t=AUTH_TOKEN;clearSession();try{if(t)fetch(API+"/api/logout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:t})});}catch(e){}}
+async function srestore(){let t=null;try{t=localStorage.getItem(SESSION_KEY);}catch(e){}if(!t)return null;AUTH_TOKEN=t;
+  try{const r=await fetch(API+"/api/me?token="+encodeURIComponent(t));const d=await r.json();if(d&&d.ok&&d.account){saveSession(t,d.account);return d.account;}clearSession();return null;}catch(e){return null;}}
+async function sgetAll(){try{const r=await fetch(API+"/api/data"+(AUTH_TOKEN?"?token="+encodeURIComponent(AUTH_TOKEN):""));const d=await r.json();return (d&&d.ok)?(d.data||{}):{};}catch{return{};}}
+async function saveRecord(collection,record){try{const r=await fetch(API+"/api/write",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:AUTH_TOKEN,collection,record})});const d=await r.json();return d&&d.ok?{ok:true}:{ok:false,error:(d&&d.error)||"Refused."};}catch{return {ok:false,error:"Connection error."};}}
+async function deleteRecord(collection,id){try{const r=await fetch(API+"/api/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:AUTH_TOKEN,collection,id})});const d=await r.json();return d&&d.ok?{ok:true}:{ok:false,error:(d&&d.error)||"Refused."};}catch{return {ok:false,error:"Connection error."};}}
+async function slogin(username,password){try{const r=await fetch(API+"/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:String(username||"").trim(),password})});const d=await r.json();if(d&&d.ok){AUTH_TOKEN=d.token;saveSession(d.token,d.account);return {ok:true,account:d.account};}return {ok:false,error:(d&&d.error)||"Sign in was refused"};}catch(e){return {ok:false,error:"Connection error"};}}
+async function registerAccount(username,passwordHash,firstName,lastName){try{const r=await fetch(API+"/api/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,passwordHash,firstName,lastName})});const d=await r.json();if(d&&d.ok){AUTH_TOKEN=d.token;saveSession(d.token,d.account);return {ok:true,account:d.account};}return {ok:false,error:(d&&d.error)||"Registration was refused"};}catch(e){return {ok:false,error:"Connection error"};}}
+async function setRoleplayName(firstName,lastName){try{const r=await fetch(API+"/api/set-name",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:AUTH_TOKEN,firstName,lastName})});const d=await r.json();if(d&&d.ok){saveSession(AUTH_TOKEN,d.account);return {ok:true,account:d.account};}return {ok:false,error:(d&&d.error)||"Refused."};}catch{return {ok:false,error:"Connection error."};}}
+// An account still needs a roleplay name if it predates the first/last-name
+// rule: no display name, one that restates the username, or a single word.
+// Mirrors the server's needsRoleplayName; the Emperor is exempt at the gate.
+function needsRpName(acc){if(!acc)return false;const dn=String(acc.displayName||"").trim();
+  return !dn||dn.toLowerCase()===String(acc.username||"").toLowerCase()||!/\s/.test(dn);}
+async function verifyMcName(name){try{const r=await fetch(API+"/api/verify-mc?name="+encodeURIComponent(String(name||"").trim()));const d=await r.json();return (d&&d.ok)?{ok:true,name:d.name,uuid:d.uuid}:{ok:false,error:(d&&d.error)||"Could not check that name."};}catch{return {ok:false,error:"Connection error."};}}
+async function resetPfp(username){try{const r=await fetch(API+"/api/profile-picture",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:AUTH_TOKEN,username:String(username||"").toLowerCase(),clear:true})});const d=await r.json();return !!(d&&d.ok);}catch{return false;}}
+async function sha256(t){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(t));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,"0")).join("");}
+function mcFaceUrl(n){return "https://mc-heads.net/avatar/"+encodeURIComponent(n||"")+"/64";}
+
+// Who may do what. The owner is the site's emperor account; a network
+// administrator is the owner or anyone the owner has granted sysAdmin.
+const isOwner=u=>!!u&&u.role==="emperor";
+const isAdmin=u=>!!u&&(u.role==="emperor"||u.sysAdmin===true);
+
+/* ── a player's standing across the three nations (read-only here) ────────── */
+const LECH_ROLE_LABEL={citizen:"Citizen",minister:"Interior Minister",emperor:"Emperor"};
+const LECH_HATS=[["mowRole","War Office"],["mofRole","Treasury"],["pressRole","Press"],
+  ["ijAccess","Judiciary"],["lssRole","LSS"],["lfpRole","LFP"],["imcRole","Maritime"]];
+const VX_LABEL={citizen:"Citizen",representative:"Representative",speaker:"Speaker",
+  cabinet:"Cabinet Secretary",vice_president:"Vice President",president:"President"};
+const WX_LABEL={citizen:"Citizen",mp:"MP",speaker:"Speaker",pm:"Prime Minister",lord:"Lord",
+  appointed:"Appointed Minister",justice:"Justice",chief_justice:"Chief Justice",sovereign:"Sovereign"};
+const CIT_LABEL={citizen:"Citizen",naturalised:"Naturalised",resident:"Resident",alien:"Registered Alien",
+  revoked:"Revoked",renounced:"Renounced"};
+
+function standingFor(acc,raw){
+  const u=String(acc.username||"").toLowerCase();
+  const lechCit=Object.values(raw.mfa_citizens||{}).find(c=>String(c.username||"").toLowerCase()===u);
+  const vxCit=Object.values(raw.vx_state_citizens||{}).find(c=>String(c.username||"").toLowerCase()===u);
+  const wxCit=Object.values(raw.wx_state_citizens||{}).find(c=>String(c.username||"").toLowerCase()===u);
+  // Citizenship comes from each foreign ministry's register alone; the retired
+  // "citizen" pseudo-office some legacy accounts still carry is not standing.
+  const lech=[];
+  if(acc.role&&acc.role!=="citizen") lech.push(LECH_ROLE_LABEL[acc.role]||acc.role);
+  LECH_HATS.forEach(([k,l])=>{if(acc[k]) lech.push(l);});
+  if(lechCit&&lechCit.status) lech.push(CIT_LABEL[lechCit.status]||lechCit.status);
+  const vindex=[];
+  if(acc.vxRole&&acc.vxRole!=="citizen") vindex.push(VX_LABEL[acc.vxRole]||acc.vxRole);
+  if(vxCit&&vxCit.status) vindex.push(CIT_LABEL[vxCit.status]||vxCit.status);
+  const wilden=[];
+  if(acc.wxRole&&acc.wxRole!=="citizen") wilden.push(WX_LABEL[acc.wxRole]||acc.wxRole);
+  if(wxCit&&wxCit.status) wilden.push(CIT_LABEL[wxCit.status]||wxCit.status);
+  return [
+    {country:"Empire of Lech",short:"Lech",color:"#b8902f",items:lech},
+    {country:"Republic of Vindex Nation",short:"Vindex",color:"#2f6fb5",items:vindex},
+    {country:"Wilden",short:"Wilden",color:"#5f9c74",items:wilden},
+  ];
+}
+
+/* ── styling helpers (broadsheet palette, inline) ────────────────────────── */
+const INK="var(--ink)",INK2="var(--ink2)",INK3="var(--ink3)",PAPER="var(--paper)",
+  PAPERD="var(--paperD)",RULE="var(--rule)",RULED="var(--ruleD)",SEAL="var(--seal)";
+const serif={fontFamily:"Spectral,Georgia,serif"};
+function Btn({children,onClick,kind,disabled,small,type}){
+  const base={...serif,fontSize:small?12:13,fontWeight:600,letterSpacing:".04em",padding:small?"5px 12px":"8px 18px",
+    borderRadius:2,cursor:disabled?"not-allowed":"pointer",opacity:disabled?.5:1,transition:"all .15s",border:"1px solid"};
+  const styles={
+    seal:{background:SEAL,color:PAPER,borderColor:SEAL},
+    ghost:{background:"transparent",color:INK2,borderColor:RULED},
+    danger:{background:"transparent",color:SEAL,borderColor:SEAL},
+  };
+  return <button type={type||"button"} disabled={disabled} onClick={disabled?undefined:onClick}
+    style={{...base,...(styles[kind]||styles.ghost)}}>{children}</button>;
+}
+function Field({label,hint,children}){
+  return <label style={{display:"block",marginBottom:14}}>
+    <div style={{...serif,fontSize:11,fontWeight:600,letterSpacing:".14em",textTransform:"uppercase",color:INK3,marginBottom:4}}>{label}</div>
+    {hint&&<div style={{...serif,fontSize:12.5,color:INK3,fontStyle:"italic",marginBottom:5}}>{hint}</div>}
+    {children}
+  </label>;
+}
+const inputStyle={...serif,width:"100%",fontSize:15,padding:"8px 11px",border:`1px solid ${RULED}`,
+  borderRadius:2,background:"#fffdf8",color:INK,outline:"none"};
+function Inp(p){return <input {...p} style={{...inputStyle,...(p.style||{})}}/>;}
+function Tag({children,color}){return <span style={{...serif,fontSize:11,fontWeight:600,letterSpacing:".03em",
+  color:color||INK2,border:`1px solid ${(color||RULED)}66`,borderRadius:2,padding:"1px 7px",whiteSpace:"nowrap"}}>{children}</span>;}
+
+/* ── the auth chip (top-right) ───────────────────────────────────────────── */
+function Chip({user,onSignIn,onRegister,onDirectory,onProfile,onAdmin,onSignOut}){
+  const wrap={position:"fixed",top:0,right:0,zIndex:40,display:"flex",alignItems:"center",gap:11,
+    padding:"9px 16px",...serif,fontSize:12.5,flexWrap:"wrap",justifyContent:"flex-end"};
+  const link={background:"none",border:0,...serif,fontSize:12.5,color:SEAL,cursor:"pointer",padding:2,
+    letterSpacing:".04em",textDecoration:"underline",textUnderlineOffset:3,textDecorationColor:RULED};
+  const dot=<span style={{color:INK3}}>·</span>;
+  if(!user) return <div style={wrap}>
+    <button style={link} onClick={onDirectory}>Directory</button>{dot}
+    <button style={link} onClick={onSignIn}>Sign in</button>{dot}
+    <button style={link} onClick={onRegister}>Register</button>
+  </div>;
+  return <div style={wrap}>
+    <button style={link} onClick={onDirectory}>Directory</button>{dot}
+    <img src={mcFaceUrl(user.mcName||user.username)} alt="" width={22} height={22}
+      style={{width:22,height:22,imageRendering:"pixelated",border:`1px solid ${RULED}`,verticalAlign:"middle"}}
+      onError={e=>{e.currentTarget.style.display="none";}}/>
+    <button style={{...link,color:INK2,textDecorationColor:"transparent"}} onClick={onProfile}>{user.displayName||user.username}</button>
+    {isAdmin(user)&&<>{dot}<button style={link} onClick={onAdmin}>Administration</button></>}
+    {dot}<button style={link} onClick={onSignOut}>Sign out</button>
+  </div>;
+}
+
+/* ── overlay shell ───────────────────────────────────────────────────────── */
+function Overlay({onClose,wide,children}){
+  return <div onClick={e=>{if(e.target===e.currentTarget)onClose();}}
+    style={{position:"fixed",inset:0,zIndex:60,background:"rgba(32,29,24,.55)",display:"flex",
+      alignItems:"flex-start",justifyContent:"center",padding:"5vh 16px",overflowY:"auto"}}>
+    <div style={{background:PAPER,maxWidth:wide?960:440,width:"100%",
+      boxShadow:"0 20px 60px rgba(32,29,24,.4)",border:`1px solid ${RULED}`}}>
+      {children}
+    </div>
+  </div>;
+}
+function ModalHead({title,onClose}){
+  return <div style={{borderBottom:`3px double ${INK}`,padding:"18px 24px 14px",display:"flex",
+    justifyContent:"space-between",alignItems:"baseline",gap:12}}>
+    <div style={{...serif,fontSize:20,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase"}}>{title}</div>
+    <button onClick={onClose} style={{background:"none",border:0,...serif,fontSize:22,color:INK3,cursor:"pointer",lineHeight:1}}>&times;</button>
+  </div>;
+}
+function Note({children,err}){return <div style={{...serif,fontSize:13.5,lineHeight:1.6,
+  borderLeft:`4px solid ${err?SEAL:RULED}`,background:err?"#f3e6e0":PAPERD,padding:"10px 14px",margin:"0 0 16px"}}>{children}</div>;}
+
+/* ── sign in ─────────────────────────────────────────────────────────────── */
+function SignIn({onClose,onDone,switchRegister}){
+  const [u,setU]=useState(""),[p,setP]=useState(""),[err,setErr]=useState(""),[busy,setBusy]=useState(false);
+  const go=async()=>{if(busy)return;if(!u.trim()||!p){setErr("Enter your username and password.");return;}
+    setBusy(true);setErr("");const r=await slogin(u,p);if(!r.ok){setErr(r.error);setBusy(false);return;}onDone(r.account);};
+  return <Overlay onClose={onClose}><ModalHead title="Sign in" onClose={onClose}/>
+    <div style={{padding:"18px 24px 24px"}} onKeyDown={e=>{if(e.key==="Enter")go();}}>
+      <Note>One account works across all three networks. The public directory is open without signing in.</Note>
+      {err&&<Note err>{err}</Note>}
+      <Field label="Username"><Inp value={u} onChange={e=>setU(e.target.value)} autoFocus/></Field>
+      <Field label="Password"><Inp type="password" value={p} onChange={e=>setP(e.target.value)}/></Field>
+      <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        <Btn kind="seal" onClick={go} disabled={busy}>{busy?"Signing in…":"Sign in"}</Btn>
+        <Btn kind="ghost" onClick={switchRegister}>Register instead</Btn>
+      </div>
+    </div>
+  </Overlay>;
+}
+
+/* ── register (public, Minecraft-verified, country-neutral) ──────────────── */
+function Register({onClose,onDone,switchSignIn}){
+  const [u,setU]=useState(""),[fn,setFn]=useState(""),[ln,setLn]=useState(""),[p,setP]=useState(""),[p2,setP2]=useState("");
+  const [err,setErr]=useState(""),[busy,setBusy]=useState(false);
+  const go=async()=>{if(busy)return;
+    if(!u.trim()){setErr("Enter your Minecraft username.");return;}
+    if(!fn.trim()||!ln.trim()){setErr("Enter your roleplay character's first and last name.");return;}
+    if(p.length<4){setErr("Choose a password of at least 4 characters.");return;}
+    if(p!==p2){setErr("The two passwords do not match.");return;}
+    setBusy(true);setErr("");
+    const hash=await sha256(p);
+    const r=await registerAccount(u.trim(),hash,fn.trim(),ln.trim());
+    if(!r.ok){setErr(r.error);setBusy(false);return;}onDone(r.account);};
+  return <Overlay onClose={onClose}><ModalHead title="Register" onClose={onClose}/>
+    <div style={{padding:"18px 24px 24px"}} onKeyDown={e=>{if(e.key==="Enter")go();}}>
+      <Note>Your username must be a real Minecraft account — it is checked against Mojang. Your roleplay
+        name is who you are on the network; it appears on every register and document. A new
+        account belongs to no nation; each country grants its own citizenship afterward.</Note>
+      {err&&<Note err>{err}</Note>}
+      <Field label="Minecraft username"><Inp value={u} onChange={e=>setU(e.target.value)} autoFocus placeholder="Your exact Minecraft name"/></Field>
+      <div style={{display:"flex",gap:12}}>
+        <div style={{flex:1}}><Field label="First name"><Inp value={fn} onChange={e=>setFn(e.target.value)}/></Field></div>
+        <div style={{flex:1}}><Field label="Last name"><Inp value={ln} onChange={e=>setLn(e.target.value)}/></Field></div>
+      </div>
+      <Field label="Password"><Inp type="password" value={p} onChange={e=>setP(e.target.value)}/></Field>
+      <Field label="Confirm password"><Inp type="password" value={p2} onChange={e=>setP2(e.target.value)}/></Field>
+      <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        <Btn kind="seal" onClick={go} disabled={busy}>{busy?"Creating…":"Create account"}</Btn>
+        <Btn kind="ghost" onClick={switchSignIn}>I already have one</Btn>
+      </div>
+    </div>
+  </Overlay>;
+}
+
+/* ── administration: the account roster ──────────────────────────────────── */
+function Admin({user,raw,reload,onProfile,onClose,notify}){
+  const [q,setQ]=useState("");
+  const [creating,setCreating]=useState(false);
+  const accounts=useMemo(()=>{
+    if(!raw) return [];
+    return Object.values(raw.mi_accounts||{}).filter(a=>a&&a.username)
+      .sort((a,b)=>((a.displayName||a.username)||"").localeCompare((b.displayName||b.username)||""));
+  },[raw]);
+  const query=q.trim().toLowerCase();
+  const list=accounts.filter(a=>!query||((a.displayName||"")+" "+(a.username||"")).toLowerCase().includes(query));
+  return <Overlay onClose={onClose} wide>
+    <ModalHead title="Administration · Accounts" onClose={onClose}/>
+    <div style={{padding:"18px 24px 26px"}}>
+      <Note>Registration and account possession live here, for the whole server. Each nation's own
+        permissions — a Lech clearance, a Vinish office, a Wildenian seat — are still set on that
+        nation's service; below they are shown, not edited.</Note>
+
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginBottom:16}}>
+        <Inp value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name or username" style={{maxWidth:320}}/>
+        <span style={{flex:1}}/>
+        {!creating&&<Btn kind="seal" onClick={()=>setCreating(true)}>+ Create account</Btn>}
+      </div>
+
+      {creating&&<CreateForm onClose={()=>setCreating(false)} notify={notify} onDone={()=>{setCreating(false);reload();}}/>}
+
+      {!raw&&<div style={{...serif,color:INK3,fontStyle:"italic",padding:"1rem 0"}}>Loading the roster…</div>}
+      {raw&&list.length===0&&<div style={{...serif,color:INK3,fontStyle:"italic",padding:"1rem 0"}}>No account matches that.</div>}
+      <div>{list.map(a=><Row key={a.username} acc={a} raw={raw} user={user} notify={notify} reload={reload} onProfile={onProfile}/>)}</div>
+    </div>
+  </Overlay>;
+}
+
+function CreateForm({onClose,onDone,notify}){
+  const [u,setU]=useState(""),[dn,setDn]=useState(""),[p,setP]=useState("");
+  const [mc,setMc]=useState(null),[err,setErr]=useState(""),[busy,setBusy]=useState(false);
+  const go=async()=>{if(busy)return;
+    if(!u.trim()){setErr("Enter the Minecraft username.");return;}
+    if(p.length<4){setErr("Set a password of at least 4 characters.");return;}
+    setBusy(true);setErr("");
+    const v=await verifyMcName(u);
+    if(!v.ok){setErr(v.error);setBusy(false);return;}
+    const id=v.name.toLowerCase();
+    const hash=await sha256(p);
+    const rec={username:id,displayName:(dn.trim()||v.name),mcName:v.name,mcUuid:v.uuid||"",
+      role:"citizen",pfpLocked:false,passwordHash:hash};
+    const res=await saveRecord("accounts",rec);
+    setBusy(false);
+    if(res.ok){notify(v.name+" has been registered.",true);onDone();}
+    else setErr(res.error);};
+  return <div style={{border:`1px solid ${RULED}`,background:PAPERD,padding:"16px 18px",marginBottom:18}}>
+    <div style={{...serif,fontSize:13,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color:INK3,marginBottom:12}}>Create an account</div>
+    {err&&<Note err>{err}</Note>}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:"0 16px"}}>
+      <Field label="Minecraft username"><Inp value={u} onChange={e=>{setU(e.target.value);setMc(null);}}/></Field>
+      <Field label="Display name" hint="Optional."><Inp value={dn} onChange={e=>setDn(e.target.value)}/></Field>
+      <Field label="Initial password"><Inp type="password" value={p} onChange={e=>setP(e.target.value)}/></Field>
+    </div>
+    <div style={{display:"flex",gap:10,marginTop:4}}>
+      <Btn kind="seal" onClick={go} disabled={busy}>{busy?"Registering…":"Register account"}</Btn>
+      <Btn kind="ghost" onClick={onClose}>Cancel</Btn>
+    </div>
+  </div>;
+}
+
+function Row({acc,raw,user,notify,reload,onProfile}){
+  const [open,setOpen]=useState(false);
+  const [mcName,setMcName]=useState(acc.mcName||"");
+  const [mcChk,setMcChk]=useState(null);
+  const [newPw,setNewPw]=useState("");
+  const [busy,setBusy]=useState("");
+  const [locked,setLocked]=useState(!!acc.pfpLocked);
+  const admin=isAdmin(user), owner=isOwner(user);
+  const isMe=String(acc.username||"").toLowerCase()===String(user.username||"").toLowerCase();
+  const standing=standingFor(acc,raw);
+
+  // Every write of an existing account sends the full record so only the field we
+  // touch is seen as changed; the server authorises per field.
+  const base=()=>({...acc});
+  const run=async(label,rec,ok)=>{setBusy(label);const res=await saveRecord("accounts",rec);setBusy("");
+    if(res.ok){notify(ok,true);reload();}else notify(res.error,false);};
+
+  return <div style={{border:`1px solid ${RULE}`,marginBottom:6,background:"#fffdf8"}}>
+    <div onClick={()=>setOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",cursor:"pointer",flexWrap:"wrap"}}>
+      <img src={mcFaceUrl(acc.mcName||acc.username)} alt="" width={34} height={34}
+        style={{width:34,height:34,imageRendering:"pixelated",border:`1px solid ${RULED}`}}
+        onError={e=>{e.currentTarget.style.visibility="hidden";}}/>
+      <div style={{minWidth:150}}>
+        <div style={{...serif,fontSize:15,fontWeight:600,color:INK}}>{acc.displayName||acc.username}
+          {acc.sysAdmin&&<span style={{marginLeft:8}}><Tag color={SEAL}>ADMIN</Tag></span>}
+          {acc.role==="emperor"&&<span style={{marginLeft:6}}><Tag color="#b8902f">OWNER</Tag></span>}
+          {acc.banned&&<span style={{marginLeft:6}}><Tag color={SEAL}>SUSPENDED</Tag></span>}</div>
+        <div style={{...serif,fontSize:12,color:INK3}}>{acc.username}</div>
+      </div>
+      <span style={{flex:1}}/>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end",maxWidth:420}}>
+        {standing.map(s=>s.items.length>0&&<Tag key={s.country} color={s.color}>{s.short}: {s.items.join(", ")}</Tag>)}
+        {standing.every(s=>s.items.length===0)&&<span style={{...serif,fontSize:12,color:INK3,fontStyle:"italic"}}>no standing yet</span>}
+      </div>
+      <span style={{color:INK3,fontSize:12}}>{open?"▲":"▼"}</span>
+    </div>
+
+    {open&&<div style={{borderTop:`1px solid ${RULE}`,padding:"16px 16px",background:PAPERD}}>
+      {/* standing, in full */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12,marginBottom:16}}>
+        {standing.map(s=><div key={s.country}>
+          <div style={{...serif,fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:s.color,marginBottom:5}}>{s.country}</div>
+          {s.items.length>0
+            ?<div style={{display:"flex",flexWrap:"wrap",gap:5}}>{s.items.map((it,i)=><Tag key={i}>{it}</Tag>)}</div>
+            :<div style={{...serif,fontSize:13,color:INK3,fontStyle:"italic"}}>No standing</div>}
+        </div>)}
+      </div>
+      <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginBottom:16}}>
+        {onProfile&&<Btn small onClick={()=>onProfile(acc.username)}>View full record →</Btn>}
+        <span style={{...serif,fontSize:12,color:INK3,fontStyle:"italic"}}>
+          Standing is set on each nation's own service. Below is account possession, which is managed here.
+        </span>
+      </div>
+
+      {!admin&&<Note>You can view this account, but only a network administrator may change it.</Note>}
+
+      {admin&&<>
+        {/* Minecraft account */}
+        <Field label="Minecraft account" hint="The likeness shown everywhere. Point an old account at the right Mojang name.">
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            <Inp value={mcName} onChange={e=>{setMcName(e.target.value);setMcChk(null);}} style={{maxWidth:260}}/>
+            <Btn small onClick={async()=>{setBusy("chk");const v=await verifyMcName(mcName);setBusy("");if(v.ok)setMcName(v.name);setMcChk(v);}} disabled={busy==="chk"||!mcName.trim()}>{busy==="chk"?"…":"Check"}</Btn>
+            <Btn small kind="seal" disabled={busy==="mc"} onClick={()=>run("mc",{...base(),mcName:mcName.trim()},"Minecraft account updated.")}>Save</Btn>
+          </div>
+          {mcChk&&<div style={{...serif,fontSize:12.5,fontStyle:"italic",marginTop:5,color:mcChk.ok?"#2e7d32":SEAL}}>
+            {mcChk.ok?"✓ "+mcChk.name+" is a real Minecraft account.":mcChk.error}</div>}
+        </Field>
+
+        {/* password */}
+        <Field label="Reset password" hint="Sets a new password directly. The holder can change it afterward from their own settings.">
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            <Inp type="password" value={newPw} onChange={e=>setNewPw(e.target.value)} placeholder="New password" style={{maxWidth:260}}/>
+            <Btn small kind="seal" disabled={busy==="pw"||newPw.length<4} onClick={async()=>{
+              setBusy("pw");const hash=await sha256(newPw);const res=await saveRecord("accounts",{...base(),passwordHash:hash});
+              setBusy("");if(res.ok){setNewPw("");notify("Password reset for "+(acc.displayName||acc.username)+".",true);}else notify(res.error,false);
+            }}>Reset</Btn>
+          </div>
+        </Field>
+
+        {/* picture control */}
+        <Field label="Profile picture">
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            <Btn small disabled={busy==="pfp"} onClick={async()=>{setBusy("pfp");const ok=await resetPfp(acc.username);setBusy("");notify(ok?"Picture reset to their Minecraft face.":"Reset failed.",ok);}}>Reset to MC face</Btn>
+            <Btn small kind={locked?"danger":"ghost"} disabled={busy==="lock"} onClick={()=>{const nl=!locked;setLocked(nl);run("lock",{...base(),pfpLocked:nl},nl?"Picture changes locked.":"Picture changes unlocked.");}}>
+              {locked?"🔒 Locked — unlock":"🔓 Lock changes"}</Btn>
+          </div>
+        </Field>
+
+        {/* admin grant — owner only */}
+        {owner&&!isMe&&<Field label="Network administrator" hint="Grants access to this panel: registration and account possession for the whole server. Not a Lech, Vindex or Wilden office.">
+          <Btn small kind={acc.sysAdmin?"danger":"ghost"} disabled={busy==="adm"}
+            onClick={()=>run("adm",{...base(),sysAdmin:!acc.sysAdmin},acc.sysAdmin?"Administrator rights revoked.":"Granted administrator rights.")}>
+            {acc.sysAdmin?"Revoke administrator":"Grant administrator"}</Btn>
+        </Field>}
+
+        {/* suspension — locks the account out and ends every session it holds */}
+        {!isMe&&acc.role!=="emperor"&&<BanControl acc={acc} busy={busy} run={run} base={base}/>}
+
+        {/* delete */}
+        {!isMe&&acc.role!=="emperor"&&<div style={{borderTop:`1px solid ${RULE}`,paddingTop:14,marginTop:6}}>
+          <DeleteControl acc={acc} notify={notify} reload={reload}/>
+        </div>}
+      </>}
+    </div>}
+  </div>;
+}
+
+// Suspension. A banned account cannot sign in, and every session it holds is
+// destroyed the moment the ban is written — so the lockout is immediate rather
+// than waiting for them to sign out. Reversible: lifting it restores the account
+// untouched. The owner's account, and your own, are never offered.
+function BanControl({acc,busy,run,base}){
+  const [armed,setArmed]=useState(false);
+  const [reason,setReason]=useState(acc.banReason||"");
+  useEffect(()=>{if(!armed)return;const t=setTimeout(()=>setArmed(false),5000);return()=>clearTimeout(t);},[armed]);
+  const banned=!!acc.banned;
+  return <Field label="Account suspension"
+    hint={banned
+      ?"This account is suspended: it cannot sign in, and holds no active session."
+      :"Locks the account out of the whole network and signs it out everywhere at once."}>
+    {banned
+      ?<div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+        <Tag color={SEAL}>SUSPENDED</Tag>
+        {acc.banReason&&<span style={{...serif,fontSize:13,color:INK2,fontStyle:"italic"}}>{acc.banReason}</span>}
+        <Btn small disabled={busy==="ban"}
+          onClick={()=>run("ban",{...base(),banned:false,banReason:"",bannedAt:null,bannedBy:null},"Suspension lifted — the account may sign in again.")}>
+          Lift suspension</Btn>
+      </div>
+      :<div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+        <Inp value={reason} onChange={e=>setReason(e.target.value)} placeholder="Reason (shown to them at sign-in)" style={{maxWidth:300}}/>
+        {armed
+          ?<Btn small kind="danger" disabled={busy==="ban"}
+            onClick={()=>{setArmed(false);run("ban",{...base(),banned:true,banReason:reason.trim(),bannedAt:Date.now()},"Account suspended and signed out everywhere.");}}>
+            Confirm suspension</Btn>
+          :<Btn small kind="danger" onClick={()=>setArmed(true)}>Suspend account</Btn>}
+      </div>}
+  </Field>;
+}
+
+function DeleteControl({acc,notify,reload}){
+  const [armed,setArmed]=useState(false),[busy,setBusy]=useState(false);
+  useEffect(()=>{if(!armed)return;const t=setTimeout(()=>setArmed(false),4000);return()=>clearTimeout(t);},[armed]);
+  return <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+    {armed
+      ?<Btn small kind="danger" disabled={busy} onClick={async()=>{setBusy(true);const res=await deleteRecord("accounts",acc.username.toLowerCase());setBusy(false);
+        if(res.ok){notify("Account "+acc.username+" deleted.",true);reload();}else notify(res.error,false);}}>Confirm deletion of {acc.username}</Btn>
+      :<Btn small kind="danger" onClick={()=>setArmed(true)}>Delete account</Btn>}
+    <span style={{...serif,fontSize:12,color:INK3,fontStyle:"italic"}}>Removes the account from every network. Their national records are not touched.</span>
+  </div>;
+}
+
+/* ═══════════ CONSOLIDATED PLAYER PROFILE ══════════════════════════════════
+   One person, seen across all three nations at once. Accounts are shared, so a
+   player may hold citizenship in more than one country — but normally they are
+   *active* (hold office, sit, serve) in only one, and citizens at rest of the
+   others. The profile makes that plain: it marks where someone is active, and
+   lists the rest as dormant citizenships. Every nation's section is drawn from
+   that nation's own records and links back to its service for the full detail.
+   As Vindex and Wilden grow their own chambers, ministries and citizen rolls,
+   more of each section simply fills in. */
+function idHash(s){s=(s||"").toLowerCase();let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=(h*16777619)>>>0;}return h>>>0;}
+const LECH_PROV={newport:["Newport","NP"],cracov:["Cracov","CR"],rome:["Rome","RM"],kingsland:["Kingsland","KL"],
+  aquitaine:["Aquitaine","AQ"],monegasque:["Monégasque","MC"],weststadt:["Weststadt","WS"]};
+const lechIdNo=(u,code)=>"LEC-"+code+"-"+((idHash("id:"+u)%900000)+100000);
+const PEER_LABEL={crown_prince:"Crown Prince",prince:"Prince",princess:"Princess",duke:"Duke",
+  marquess:"Marquess",count:"Count",viscount:"Viscount",baron:"Baron",baronet:"Baronet"};
+const PP_TYPE={regular:"Regular passport",official:"Official passport",diplomatic:"Diplomatic passport",service:"Service passport"};
+
+function buildProfile(acc,raw,viewer){
+  const u=String(acc.username||"").toLowerCase();
+  const dn=acc.displayName||acc.username;
+  const eq=v=>String(v||"").toLowerCase()===u;
+  const nm=v=>{const s=String(v||"").toLowerCase();return !!s&&(s===u||s===String(acc.displayName||"").toLowerCase());};
+  // Document numbers are personal: passports arrive from the server already
+  // filtered to what the viewer may see, and the derived identity-card number
+  // is likewise shown only to the holder and to administrators.
+  const seesDocs=!!viewer&&(String(viewer.username||"").toLowerCase()===u||isAdmin(viewer));
+
+  // ── Empire of Lech ──
+  const off=raw.bk_officials||{};
+  const lech=[];
+  if(acc.role==="emperor") lech.push("Emperor of Lech");
+  else if(acc.role==="minister") lech.push("Minister of the Interior");
+  if(eq(off.chancellor_username)) lech.push("Imperial Chancellor");
+  if(eq(off.president_bt_username)) lech.push("President of the Bundestag");
+  if(eq(off.president_bh_username)) lech.push("President of the Bundesherren");
+  Object.entries(off.minister_usernames||{}).forEach(([p,mu])=>{if(eq(mu)) lech.push(p);});
+  if(Object.values(raw.bk_members||{}).some(m=>eq(m.username))) lech.push("Member of the Bundestag");
+  const bh=Object.values(raw.bk_bh||{}).find(m=>eq(m.username));
+  let peerage=null;
+  if(bh){const r=PEER_LABEL[bh.rank];peerage=r?(r+(bh.title?", "+bh.title:"")):(bh.title||"Bundesherr");lech.push("Bundesherr");}
+  // Only public offices and named titles are shown — never the internal access
+  // levels (War Office, Treasury, Judiciary and the like), which are permissions,
+  // not offices a person holds.
+  const lechHon=Object.values(raw.ih_honours||{}).filter(h=>h&&nm(h.recipient)).map(h=>h.medal).filter(Boolean);
+  const lechCit=Object.values(raw.mfa_citizens||{}).find(c=>eq(c.username));
+  const lechDocs=[];
+  if(seesDocs&&acc.stateOfResidency&&LECH_PROV[acc.stateOfResidency]){const [pn,code]=LECH_PROV[acc.stateOfResidency];
+    lechDocs.push({label:"Provincial identity card",ref:lechIdNo(u,code),note:pn+" Province"});}
+  const lechExtra=[];
+  if(peerage) lechExtra.push("Peerage — "+peerage);
+  if(lechHon.length) lechExtra.push("Honours — "+lechHon.join(", "));
+
+  // ── Republic of Vindex Nation ──
+  const vindex=[];
+  if(acc.vxRole&&acc.vxRole!=="citizen") vindex.push(VX_LABEL[acc.vxRole]||acc.vxRole);
+  const vxCit=Object.values(raw.vx_state_citizens||{}).find(c=>eq(c.username));
+  const vxPass=Object.values(raw.vx_state_passports||{}).find(pp=>pp&&(eq(pp.username)||nm(pp.name)));
+  const vxDocs=[];
+  if(vxPass&&vxPass.number) vxDocs.push({label:PP_TYPE[vxPass.type]||"Passport",ref:vxPass.number,
+    note:vxPass.status==="revoked"?"Revoked":null});
+
+  // ── Wilden ──
+  const wilden=[];
+  if(acc.wxRole&&acc.wxRole!=="citizen") wilden.push(WX_LABEL[acc.wxRole]||acc.wxRole);
+  const wxCit=Object.values(raw.wx_state_citizens||{}).find(c=>eq(c.username));
+
+  const countries=[
+    {key:"lech",name:"Empire of Lech",short:"Lech",color:"#b8902f",href:"lech.html",
+     citizenship:lechCit?(CIT_LABEL[lechCit.status]||lechCit.status):null,
+     residency:acc.stateOfResidency&&LECH_PROV[acc.stateOfResidency]?LECH_PROV[acc.stateOfResidency][0]:null,
+     offices:lech,extra:lechExtra,documents:lechDocs,note:null},
+    {key:"vindex",name:"Republic of Vindex Nation",short:"Vindex",color:"#2f6fb5",href:"vindex.html",
+     citizenship:vxCit?(CIT_LABEL[vxCit.status]||vxCit.status):null,residency:null,
+     offices:vindex,extra:[],documents:vxDocs,note:null},
+    {key:"wilden",name:"Wilden",short:"Wilden",color:"#5f9c74",href:"wilden.html",
+     citizenship:wxCit?(CIT_LABEL[wxCit.status]||wxCit.status):null,residency:null,
+     offices:wilden,extra:[],documents:[],note:null},
+  ];
+  countries.forEach(c=>{c.active=c.offices.length>0;c.hasStanding=c.active||!!c.citizenship||c.documents.length>0;});
+  return {username:acc.username,displayName:dn,mcName:acc.mcName,countries};
+}
+
+function summaryOf(countries){
+  const active=countries.filter(c=>c.active);
+  const dormant=countries.filter(c=>c.citizenship&&!c.active);
+  if(active.length===1){
+    let s="Active in the "+active[0].name;
+    if(dormant.length) s+=" — also a citizen of "+dormant.map(c=>c.short).join(" and ");
+    return s;
+  }
+  if(active.length>1) return "Holds office in "+active.map(c=>c.short).join(" and ")+" — active in more than one nation";
+  const cits=countries.filter(c=>c.citizenship);
+  if(cits.length) return "Citizen of "+cits.map(c=>c.short).join(", ")+", holding no office";
+  return "Registered — no national standing yet";
+}
+
+function Profile({username,raw,user,onOpenAdmin,onClose}){
+  const acc=raw?Object.values(raw.mi_accounts||{}).find(a=>a&&String(a.username||"").toLowerCase()===String(username||"").toLowerCase()):null;
+  const p=acc?buildProfile(acc,raw,user):null;
+  const isMe=user&&String(user.username||"").toLowerCase()===String(username||"").toLowerCase();
+  return <Overlay onClose={onClose} wide>
+    <ModalHead title={isMe?"My record":"Player record"} onClose={onClose}/>
+    <div style={{padding:"18px 24px 26px"}}>
+      {!raw&&<div style={{...serif,color:INK3,fontStyle:"italic"}}>Loading…</div>}
+      {raw&&!acc&&<Note err>No account by that name.</Note>}
+      {p&&<>
+        {/* header */}
+        <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap",borderBottom:`1px solid ${RULE}`,paddingBottom:16,marginBottom:16}}>
+          <img src={mcFaceUrl(p.mcName||p.username)} alt="" width={64} height={64}
+            style={{width:64,height:64,imageRendering:"pixelated",border:`1px solid ${RULED}`}}
+            onError={e=>{e.currentTarget.style.visibility="hidden";}}/>
+          <div style={{minWidth:180}}>
+            <div style={{...serif,fontSize:24,fontWeight:700,color:INK,lineHeight:1.1}}>{p.displayName}</div>
+            <div style={{...serif,fontSize:13,color:INK3}}>{p.username}</div>
+            <div style={{...serif,fontSize:14,fontStyle:"italic",color:INK2,marginTop:6}}>{summaryOf(p.countries)}</div>
+          </div>
+        </div>
+
+        {/* three nations */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr",gap:14}}>
+          {p.countries.map(c=><CountryPanel key={c.key} c={c}/>)}
+        </div>
+
+        <div style={{...serif,fontSize:12,color:INK3,fontStyle:"italic",marginTop:16,lineHeight:1.6}}>
+          Citizenship, offices and documents are held by each nation and shown here together. Open a
+          nation's own service for the full record.
+          {isAdmin(user)&&onOpenAdmin&&<> · <button onClick={onOpenAdmin} style={{background:"none",border:0,...serif,fontSize:12,
+            color:SEAL,cursor:"pointer",textDecoration:"underline",textUnderlineOffset:3}}>Manage this account</button></>}
+        </div>
+      </>}
+    </div>
+  </Overlay>;
+}
+
+function CountryPanel({c}){
+  const dim=!c.hasStanding;
+  return <div style={{border:`1px solid ${RULE}`,borderTop:`3px solid ${dim?RULED:c.color}`,
+    background:dim?PAPER:"#fffdf8",padding:"14px 16px",opacity:dim?.8:1}}>
+    <div style={{display:"flex",alignItems:"baseline",gap:10,flexWrap:"wrap",marginBottom:10}}>
+      <a href={c.href} style={{...serif,fontSize:16,fontWeight:700,color:c.color,textDecoration:"none"}}>{c.name}</a>
+      {c.active&&<span style={{...serif,fontSize:10.5,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",
+        color:"#fff",background:c.color,padding:"2px 8px"}}>Active</span>}
+      {c.citizenship&&!c.active&&<span style={{...serif,fontSize:10.5,fontWeight:600,letterSpacing:".08em",
+        textTransform:"uppercase",color:c.color,border:`1px solid ${c.color}66`,padding:"1px 7px"}}>Citizen</span>}
+      <span style={{flex:1}}/>
+      <a href={c.href} style={{...serif,fontSize:12.5,color:c.color}}>Full record →</a>
+    </div>
+
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:"6px 20px"}}>
+      <div>
+        <div style={{...serif,fontSize:10.5,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:INK3,marginBottom:3}}>Citizenship</div>
+        <div style={{...serif,fontSize:14,color:c.citizenship?INK:INK3,fontStyle:c.citizenship?"normal":"italic"}}>
+          {c.citizenship||(c.note?"—":"Not a citizen")}{c.residency?" · resident of "+c.residency:""}</div>
+      </div>
+      <div>
+        <div style={{...serif,fontSize:10.5,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:INK3,marginBottom:3}}>Office &amp; standing</div>
+        {c.offices.length>0
+          ?<div style={{display:"flex",flexWrap:"wrap",gap:5}}>{c.offices.map((o,i)=><Tag key={i} color={c.color}>{o}</Tag>)}</div>
+          :<div style={{...serif,fontSize:14,color:INK3,fontStyle:"italic"}}>Holds no office</div>}
+        {c.extra.map((e,i)=><div key={i} style={{...serif,fontSize:12.5,color:INK2,marginTop:4}}>{e}</div>)}
+      </div>
+      {c.documents.length>0&&<div>
+        <div style={{...serif,fontSize:10.5,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:INK3,marginBottom:3}}>Documents</div>
+        {c.documents.map((d,i)=><div key={i} style={{...serif,fontSize:14,color:INK}}>
+          {d.label} · <span style={{fontVariantNumeric:"tabular-nums"}}>{d.ref}</span>
+          {d.note&&<span style={{color:INK3,fontStyle:"italic"}}> ({d.note})</span>}</div>)}
+      </div>}
+    </div>
+    {c.note&&<div style={{...serif,fontSize:12,color:INK3,fontStyle:"italic",marginTop:8}}>{c.note}</div>}
+  </div>;
+}
+
+/* ── directory: find a player, then open their record ────────────────────── */
+function Directory({raw,onOpen,onClose}){
+  const [q,setQ]=useState("");
+  const accounts=raw?Object.values(raw.mi_accounts||{}).filter(a=>a&&a.username)
+    .sort((a,b)=>((a.displayName||a.username)||"").localeCompare((b.displayName||b.username)||"")):[];
+  const query=q.trim().toLowerCase();
+  const list=accounts.filter(a=>!query||((a.displayName||"")+" "+(a.username||"")).toLowerCase().includes(query));
+  return <Overlay onClose={onClose} wide>
+    <ModalHead title="Directory" onClose={onClose}/>
+    <div style={{padding:"18px 24px 26px"}}>
+      <Note>Everyone registered on the network. Open a record to see their standing across all three nations.</Note>
+      <Inp value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name or username" style={{maxWidth:340,marginBottom:16}}/>
+      {!raw&&<div style={{...serif,color:INK3,fontStyle:"italic"}}>Loading…</div>}
+      {raw&&list.length===0&&<div style={{...serif,color:INK3,fontStyle:"italic"}}>No one matches that.</div>}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:8}}>
+        {list.map(a=>{const p=buildProfile(a,raw);const active=p.countries.find(c=>c.active);
+          return <button key={a.username} onClick={()=>onOpen(a.username)}
+            style={{textAlign:"left",background:"#fffdf8",border:`1px solid ${RULE}`,padding:"9px 12px",cursor:"pointer",
+              display:"flex",gap:10,alignItems:"center"}}>
+            <img src={mcFaceUrl(a.mcName||a.username)} alt="" width={30} height={30}
+              style={{width:30,height:30,imageRendering:"pixelated",border:`1px solid ${RULED}`}}
+              onError={e=>{e.currentTarget.style.visibility="hidden";}}/>
+            <span style={{minWidth:0}}>
+              <span style={{...serif,fontSize:14,fontWeight:600,color:INK,display:"block"}}>{a.displayName||a.username}</span>
+              <span style={{...serif,fontSize:11.5,color:active?active.color:INK3}}>
+                {active?"Active in "+active.short:(p.countries.some(c=>c.citizenship)?"Citizen":"Registered")}</span>
+            </span>
+          </button>;})}
+      </div>
+    </div>
+  </Overlay>;
+}
+
+/* ── the name gate ───────────────────────────────────────────────────────────
+   Accounts that predate the roleplay-name rule were legacied in with their
+   username as their display name. They are stopped here, at the door, until a
+   proper first and last name is on file. There is no way past but through —
+   or out. The Emperor alone is exempt. */
+function NameGate({user,onNamed,onSignOut}){
+  const [fn,setFn]=useState(""),[ln,setLn]=useState(""),[err,setErr]=useState(""),[busy,setBusy]=useState(false);
+  const go=async()=>{if(busy)return;
+    if(!fn.trim()||!ln.trim()){setErr("Enter both a first and a last name.");return;}
+    setBusy(true);setErr("");
+    const r=await setRoleplayName(fn.trim(),ln.trim());
+    if(!r.ok){setErr(r.error);setBusy(false);return;}
+    onNamed(r.account);};
+  return <div style={{position:"fixed",inset:0,zIndex:100,background:"rgba(32,29,24,.72)",display:"flex",
+      alignItems:"flex-start",justifyContent:"center",padding:"8vh 16px",overflowY:"auto"}}>
+    <div style={{background:PAPER,maxWidth:460,width:"100%",boxShadow:"0 20px 60px rgba(32,29,24,.5)",border:`1px solid ${RULED}`}}>
+      <div style={{borderBottom:`3px double ${INK}`,padding:"18px 24px 14px"}}>
+        <div style={{...serif,fontSize:20,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase"}}>State your name</div>
+      </div>
+      <div style={{padding:"18px 24px 24px"}} onKeyDown={e=>{if(e.key==="Enter")go();}}>
+        <Note>Every player on the network carries a roleplay name — a first and a last name. Your
+          account predates this requirement, so it is recorded under your username,
+          <b> {user.username}</b>. Enter your character's name to continue; it will appear on every
+          register and document across all three nations.</Note>
+        {err&&<Note err>{err}</Note>}
+        <div style={{display:"flex",gap:12}}>
+          <div style={{flex:1}}><Field label="First name"><Inp value={fn} onChange={e=>setFn(e.target.value)} autoFocus/></Field></div>
+          <div style={{flex:1}}><Field label="Last name"><Inp value={ln} onChange={e=>setLn(e.target.value)}/></Field></div>
+        </div>
+        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+          <Btn kind="seal" onClick={go} disabled={busy}>{busy?"Recording…":"Record my name"}</Btn>
+          <Btn kind="ghost" onClick={onSignOut}>Sign out</Btn>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ── root ────────────────────────────────────────────────────────────────── */
+function VintranetApp(){
+  const [user,setUser]=useState(()=>cachedAccount());
+  const [view,setView]=useState(null);   // null | {t:"signin"|"register"|"admin"|"directory"|"profile", username?}
+  const [raw,setRaw]=useState(null);      // shared snapshot for the data-backed views
+  const [toast,setToast]=useState(null);
+  const notify=useCallback((text,ok)=>{setToast({text,ok});setTimeout(()=>setToast(t=>t&&t.text===text?null:t),4500);},[]);
+  const loadRaw=useCallback(async()=>{const r=await sgetAll();setRaw(r);return r;},[]);
+  // Load the roster the first time a view needs it, and refresh it after a write.
+  const open=useCallback((v)=>{if(v&&["admin","directory","profile"].includes(v.t)&&!raw)loadRaw();setView(v);},[raw,loadRaw]);
+  useEffect(()=>{srestore().then(acc=>{if(acc)setUser(acc);else if(!AUTH_TOKEN)setUser(null);});},[]);
+  return <>
+    <Chip user={user}
+      onSignIn={()=>setView({t:"signin"})} onRegister={()=>setView({t:"register"})}
+      onDirectory={()=>open({t:"directory"})}
+      onProfile={()=>open({t:"profile",username:user.username})}
+      onAdmin={()=>open({t:"admin"})}
+      onSignOut={()=>{forgetSession();setUser(null);setView(null);notify("You have been signed out.",true);}}/>
+    {toast&&<div style={{position:"fixed",top:44,right:16,zIndex:80,maxWidth:340,...serif,fontSize:13.5,
+      background:PAPER,border:`1px solid ${RULED}`,borderLeft:`4px solid ${toast.ok?"#2e7d32":SEAL}`,
+      padding:"10px 15px",boxShadow:"0 8px 26px rgba(32,29,24,.28)"}}>{toast.text}</div>}
+    {view&&view.t==="signin"&&<SignIn onClose={()=>setView(null)} switchRegister={()=>setView({t:"register"})}
+      onDone={acc=>{setUser(acc);setView(null);notify("Signed in as "+(acc.displayName||acc.username)+".",true);}}/>}
+    {view&&view.t==="register"&&<Register onClose={()=>setView(null)} switchSignIn={()=>setView({t:"signin"})}
+      onDone={acc=>{setUser(acc);setView(null);notify("Welcome, "+(acc.displayName||acc.username)+". Your account is ready.",true);}}/>}
+    {view&&view.t==="admin"&&isAdmin(user)&&<Admin user={user} raw={raw} reload={loadRaw}
+      onProfile={un=>open({t:"profile",username:un})} onClose={()=>setView(null)} notify={notify}/>}
+    {view&&view.t==="directory"&&<Directory raw={raw} onOpen={un=>open({t:"profile",username:un})} onClose={()=>setView(null)}/>}
+    {view&&view.t==="profile"&&<Profile username={view.username} raw={raw} user={user}
+      onOpenAdmin={isAdmin(user)?()=>open({t:"admin"}):null} onClose={()=>setView(null)}/>}
+    {user&&user.role!=="emperor"&&needsRpName(user)&&<NameGate user={user}
+      onNamed={acc=>{setUser(acc);notify("Welcome, "+acc.displayName+". Your name is on record.",true);}}
+      onSignOut={()=>{forgetSession();setUser(null);setView(null);}}/>}
+  </>;
+}
+
+ReactDOM.createRoot(document.getElementById("vx-auth")).render(<VintranetApp/>);
+</script>
+
+</body>
+</html>

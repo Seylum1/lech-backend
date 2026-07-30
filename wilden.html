@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Wilden — Government Services</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   WILDEN — GOVERNMENT SERVICES
+   Its own language: the civic-digital register — flat, light, plain-spoken, with
+   the accessibility furniture that comes with it (yellow focus, real hit areas,
+   generous type). Nothing ceremonial; Wilden reads as a public service, which is
+   what sets it apart from Lech's imperial livery and Vindex's federal navy.
+   ═══════════════════════════════════════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+
+:root{
+  --black:#0b0c0c; --crown:#0f2f33; --crownD:#0a2124;
+  --grey1:#f3f2f1; --grey2:#e8e6e4; --grey3:#b1b4b6; --grey4:#505a5f;
+  --green:#00703c; --greenD:#005a30; --greenL:#cce2d8;
+  --blue:#1d70b8; --blueD:#003078; --blueL:#d2e2f1;
+  --red:#d4351c; --redD:#942514; --redL:#f6d7d2;
+  --teal:#1e857a; --tealL:#d4ebe8;
+  --amber:#f47738; --amberL:#fcdccb;
+  --focus:#ffdd00;
+  --white:#fff;
+}
+
+html{font-size:100%;}
+body{background:var(--white);color:var(--black);
+  font-family:Inter,'Helvetica Neue',Arial,sans-serif;font-size:16px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;min-height:100vh;display:flex;flex-direction:column;}
+
+/* the single most recognisable civic-digital signal */
+a:focus,button:focus,input:focus,select:focus,textarea:focus,[tabindex]:focus{
+  outline:3px solid transparent;background-color:var(--focus)!important;color:var(--black)!important;
+  box-shadow:0 -2px var(--focus),0 4px var(--black);text-decoration:none!important;}
+
+.w{max-width:1020px;margin:0 auto;padding:0 15px;width:100%;}
+.mono{font-variant-numeric:tabular-nums;}
+
+/* ── header ──────────────────────────────────────────────────────────────── */
+.hdr{background:var(--crown);border-bottom:10px solid var(--crownD);}
+.hdr .w{display:flex;align-items:center;gap:12px;padding:10px 15px;flex-wrap:wrap;}
+.hdr .arms{width:34px;height:34px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.hdr .arms img{max-width:100%;max-height:100%;object-fit:contain;}
+.hdr .arms .fb{display:none;color:#fff;font-size:19px;}
+.hdr a.brand{color:#fff;text-decoration:none;font-weight:800;font-size:19px;letter-spacing:-.01em;}
+.hdr a.brand:hover{text-decoration:underline;text-underline-offset:3px;}
+.hdr .spacer{flex:1;}
+.hdr .who{color:#c9d6d8;font-size:13px;text-align:right;line-height:1.3;}
+.hdr .who b{color:#fff;display:block;font-weight:600;font-size:14px;}
+.hdr .signout{background:none;border:0;color:#fff;font:inherit;font-size:14px;text-decoration:underline;
+  text-underline-offset:3px;cursor:pointer;padding:4px 2px;}
+.hdr .signin{background:var(--green);border:0;border-bottom:2px solid rgba(0,0,0,.28);color:#fff;
+  font:inherit;font-weight:600;font-size:14px;padding:7px 14px;cursor:pointer;}
+
+/* ── nav ─────────────────────────────────────────────────────────────────── */
+.nav{background:var(--crownD);}
+.nav .w{display:flex;overflow-x:auto;padding:0 15px;}
+.nav button{background:none;border:0;border-bottom:4px solid transparent;color:#c9d6d8;font:inherit;
+  font-weight:600;font-size:15px;padding:12px 15px;cursor:pointer;white-space:nowrap;}
+.nav button:hover{color:#fff;}
+.nav button[aria-current="page"]{color:#fff;border-bottom-color:#fff;}
+
+/* ── phase banner ────────────────────────────────────────────────────────── */
+.phase{border-bottom:1px solid var(--grey3);}
+.phase .w{display:flex;align-items:center;gap:11px;padding:9px 15px;flex-wrap:wrap;}
+.phase p{font-size:14px;color:var(--grey4);}
+
+/* ── type ────────────────────────────────────────────────────────────────── */
+main{flex:1;padding:26px 0 46px;}
+h1{font-size:36px;font-weight:700;letter-spacing:-.02em;line-height:1.11;margin-bottom:18px;}
+h2{font-size:24px;font-weight:700;letter-spacing:-.01em;line-height:1.2;margin:34px 0 14px;}
+h3{font-size:18px;font-weight:700;line-height:1.25;margin:22px 0 8px;}
+p{margin-bottom:14px;}
+.lede{font-size:19px;line-height:1.55;color:var(--black);margin-bottom:20px;max-width:640px;}
+.hint{font-size:15px;color:var(--grey4);margin-bottom:12px;}
+.caption{font-size:14px;color:var(--grey4);font-weight:600;margin-bottom:2px;}
+a{color:var(--blue);text-underline-offset:2px;}
+a:hover{color:var(--blueD);}
+.rule{border:0;border-top:1px solid var(--grey3);margin:28px 0;}
+.rule.thick{border-top:2px solid var(--blue);}
+
+/* ── tags ────────────────────────────────────────────────────────────────── */
+.tag{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  padding:3px 8px;white-space:nowrap;}
+.tag.blue{background:var(--blueL);color:var(--blueD);}
+.tag.green{background:var(--greenL);color:#005a30;}
+.tag.grey{background:var(--grey2);color:#383f43;}
+.tag.red{background:var(--redL);color:#942514;}
+.tag.amber{background:var(--amberL);color:#8b4415;}
+.tag.teal{background:var(--tealL);color:#12564f;}
+
+/* ── buttons ─────────────────────────────────────────────────────────────── */
+.btn{display:inline-block;font:inherit;font-weight:600;font-size:16px;padding:9px 16px;border:0;
+  border-bottom:2px solid rgba(0,0,0,.28);background:var(--green);color:#fff;cursor:pointer;
+  text-decoration:none;text-align:center;}
+.btn:hover{background:var(--greenD);}
+.btn.sec{background:var(--grey2);color:var(--black);border-bottom-color:#929191;}
+.btn.sec:hover{background:#dbdad9;}
+.btn.warn{background:var(--red);}
+.btn.warn:hover{background:var(--redD);}
+.btn.small{font-size:14px;padding:6px 12px;}
+.btn[disabled]{opacity:.55;cursor:not-allowed;}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+
+/* ── inset / notification / panel ────────────────────────────────────────── */
+.inset{border-left:10px solid var(--grey3);padding:12px 0 12px 18px;margin:18px 0;}
+.inset.blue{border-left-color:var(--blue);}
+.notif{border:5px solid var(--blue);margin-bottom:22px;}
+.notif .head{background:var(--blue);color:#fff;padding:8px 15px;font-weight:700;font-size:15px;}
+.notif .body{padding:14px 15px;}
+.notif.ok{border-color:var(--green);}
+.notif.ok .head{background:var(--green);}
+.confirm{background:var(--green);color:#fff;padding:28px 20px;text-align:center;margin-bottom:24px;}
+.confirm .t{font-size:26px;font-weight:700;}
+.confirm .s{font-size:17px;margin-top:8px;}
+
+/* ── summary list ────────────────────────────────────────────────────────── */
+.sl{border-top:1px solid var(--grey3);margin-bottom:20px;}
+.sl .row{display:flex;gap:16px;border-bottom:1px solid var(--grey3);padding:11px 0;flex-wrap:wrap;}
+.sl .k{font-weight:700;width:210px;flex-shrink:0;}
+.sl .v{flex:1;min-width:180px;}
+.sl .a{text-align:right;}
+
+/* ── table ───────────────────────────────────────────────────────────────── */
+table{width:100%;border-collapse:collapse;margin-bottom:20px;}
+caption{text-align:left;font-weight:700;font-size:18px;margin-bottom:10px;}
+th,td{text-align:left;padding:10px 14px 10px 0;border-bottom:1px solid var(--grey3);vertical-align:top;font-size:15px;}
+th{font-weight:700;}
+thead th{border-bottom:1px solid var(--black);}
+td.num,th.num{text-align:right;padding-right:0;}
+
+/* ── cards / grid ────────────────────────────────────────────────────────── */
+.grid{display:grid;gap:18px;}
+.g2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}
+.g3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr));}
+.card{border:1px solid var(--grey3);border-top:4px solid var(--teal);padding:16px 18px;background:var(--white);}
+.card.muted{border-top-color:var(--grey3);background:#fafafa;}
+.card h3{margin-top:0;}
+.stat{border:1px solid var(--grey3);padding:14px 16px;}
+.stat .n{font-size:32px;font-weight:700;line-height:1.05;letter-spacing:-.02em;}
+.stat .l{font-size:14px;color:var(--grey4);margin-top:3px;}
+
+/* ── person ──────────────────────────────────────────────────────────────── */
+.person{display:flex;gap:12px;align-items:center;}
+.person img{width:40px;height:40px;image-rendering:pixelated;border:1px solid var(--grey3);flex-shrink:0;}
+.person .nm{font-weight:600;line-height:1.3;}
+.person .un{font-size:13px;color:var(--grey4);}
+.vacant{color:var(--grey4);font-style:italic;}
+
+/* ── forms ───────────────────────────────────────────────────────────────── */
+label{display:block;font-weight:600;margin-bottom:5px;}
+input[type=text],input[type=password],textarea,select{
+  width:100%;font:inherit;font-size:16px;padding:8px 10px;border:2px solid var(--black);background:#fff;color:var(--black);}
+textarea{line-height:1.55;resize:vertical;}
+.field{margin-bottom:18px;max-width:520px;}
+.field .hint{margin-bottom:6px;}
+.err{border-left:5px solid var(--red);padding:12px 0 12px 14px;margin-bottom:18px;}
+.err .t{font-weight:700;color:var(--red);}
+
+/* ── misc ────────────────────────────────────────────────────────────────── */
+.bar{height:14px;background:var(--grey2);display:flex;overflow:hidden;margin:8px 0 6px;}
+.bar span{display:block;height:100%;}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:14px;color:var(--grey4);}
+.legend b{font-weight:700;color:var(--black);}
+.subnav{display:flex;gap:0;border-bottom:1px solid var(--grey3);margin-bottom:22px;overflow-x:auto;}
+.subnav button{background:none;border:0;border-bottom:4px solid transparent;font:inherit;font-weight:600;
+  font-size:15px;color:var(--blue);padding:9px 14px;cursor:pointer;white-space:nowrap;}
+.subnav button[aria-current="true"]{color:var(--black);border-bottom-color:var(--black);}
+details{margin-bottom:16px;}
+summary{color:var(--blue);cursor:pointer;font-size:15px;padding:2px 0;}
+details .content{border-left:5px solid var(--grey3);padding:12px 0 4px 16px;margin-top:8px;font-size:15px;}
+
+/* ── footer ──────────────────────────────────────────────────────────────── */
+.ftr{border-top:1px solid var(--grey3);background:var(--grey1);padding:22px 0 26px;margin-top:auto;}
+.ftr .w{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;align-items:flex-end;}
+.ftr .lic{font-size:14px;color:var(--grey4);max-width:480px;}
+.ftr .lic a{color:var(--blue);}
+.powered{display:inline-flex;align-items:center;gap:9px;}
+.powered .by{font-size:12px;color:var(--grey4);text-transform:uppercase;letter-spacing:.09em;font-weight:600;}
+.powered img{height:28px;width:auto;object-fit:contain;}
+.powered .fb{display:none;font-weight:700;font-size:13px;color:var(--grey4);}
+
+@media(max-width:640px){
+  h1{font-size:28px;} h2{font-size:21px;} .lede{font-size:17px;}
+  .sl .k{width:100%;}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useCallback,useMemo}=React;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WILDEN — GOVERNMENT SERVICES
+   The Crown, the Parliament, His Majesty's Government and the Judicature, as
+   established by the Constitution of Wilden. Accounts are shared across the
+   networks; Wildenian office is a field on the account (wxRole) and is conferred
+   here, on Wilden's own service. Records live under wx_* keys.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── backend ─────────────────────────────────────────────────────────────── */
+function uid(){return Date.now()+"_"+Math.random().toString(36).slice(2,8);}
+const API="https://lech-backend.onrender.com";
+let AUTH_TOKEN=null;
+const SESSION_KEY="lech_session";
+// The account the token belongs to, cached beside it so a page paints its
+// signed-in state on the first frame instead of waiting on the /api/me round
+// trip. A display cache only — the server still authorises every read and write
+// against the token itself — and it is reconciled the moment /api/me answers.
+const SESSION_ACC_KEY="lech_session_acc";
+function saveSession(t,acc){try{if(t)localStorage.setItem(SESSION_KEY,t);if(acc)localStorage.setItem(SESSION_ACC_KEY,JSON.stringify(acc));}catch(e){}}
+function cachedAccount(){
+  try{
+    var t=localStorage.getItem(SESSION_KEY); if(!t) return null;
+    var a=localStorage.getItem(SESSION_ACC_KEY); if(!a) return null;
+    AUTH_TOKEN=t; return JSON.parse(a);
+  }catch(e){ return null; }
+}
+function clearSession(){try{localStorage.removeItem(SESSION_KEY);localStorage.removeItem(SESSION_ACC_KEY);}catch(e){}AUTH_TOKEN=null;}
+function forgetSession(){const t=AUTH_TOKEN;clearSession();try{if(t)fetch(API+"/api/logout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:t})});}catch(e){}}
+async function srestore(){
+  let t=null;try{t=localStorage.getItem(SESSION_KEY);}catch(e){}
+  if(!t)return null;AUTH_TOKEN=t;
+  try{
+    const r=await fetch(API+"/api/me?token="+encodeURIComponent(t));
+    const d=await r.json();
+    if(d&&d.ok&&d.account){saveSession(t,d.account);return d.account;}
+    clearSession();return null;
+  }catch(e){ return null; }
+}
+async function sgetAll(){try{const r=await fetch(API+"/api/data"+(AUTH_TOKEN?"?token="+encodeURIComponent(AUTH_TOKEN):""));const d=await r.json();return (d&&d.ok)?(d.data||{}):{};}catch{return{};}}
+async function sset(k,v){try{const r=await fetch(API+"/api/set",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:AUTH_TOKEN,key:k,value:v})});const d=await r.json();return d&&d.ok?{ok:true}:{ok:false,error:(d&&d.error)||"Refused."};}catch{return {ok:false,error:"Connection error."};}}
+// Per record, so two members dividing at the same moment cannot overwrite each other.
+async function saveRecord(collection,record){
+  try{const r=await fetch(API+"/api/write",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({token:AUTH_TOKEN,collection,record})});const d=await r.json();
+    return d&&d.ok?{ok:true}:{ok:false,error:(d&&d.error)||"Refused."};}catch{return {ok:false,error:"Connection error."};}
+}
+async function deleteRecord(collection,id){
+  try{const r=await fetch(API+"/api/delete",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({token:AUTH_TOKEN,collection,id})});const d=await r.json();
+    return d&&d.ok?{ok:true}:{ok:false,error:(d&&d.error)||"Refused."};}catch{return {ok:false,error:"Connection error."};}
+}
+async function slogin(username,password){try{const r=await fetch(API+"/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:String(username||"").trim(),password})});const d=await r.json();if(d&&d.ok){AUTH_TOKEN=d.token;saveSession(d.token,d.account);return {ok:true,account:d.account};}return {ok:false,error:(d&&d.error)||"Sign in was refused"};}catch(e){return {ok:false,error:"Connection error"};}}
+function fmtDate(d){if(d===undefined||d===null||d==="")return "—";const t=typeof d==="number"?d:new Date(d).getTime();if(isNaN(t))return ""+d;
+  return new Date(t).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});}
+function mcFaceUrl(n){return "https://mc-heads.net/avatar/"+encodeURIComponent(n||"")+"/64";}
+
+/* ═══════════ THE CONSTITUTION OF WILDEN — the rules enforced here ══════════
+   s17      The House of Commons consists of seven (7) elected members.
+   s20(2)   The Speaker votes only where the votes are otherwise equal.
+   s21      Quorum is three (3); questions are decided by a majority of the
+            members present and voting.
+   s22(1)   The House of Lords consists of not more than five (5) Lords.
+   s25(1)   A bill must pass both Houses before it is presented for assent.
+   s25(2)   A money bill may originate only in the House of Commons.
+   s25(3)   Where the Lords rejects a bill the Commons has passed, the Commons
+            may pass it again and it goes for assent regardless. The will of the
+            House of Commons prevails.
+   s31(2)   No confidence requires a majority of ALL the members — four of seven.
+   s46(1)   A bill to alter the Constitution needs not fewer than five (5) of the
+            seven members of the Commons.
+   s10      No bill becomes law without the Royal Assent.                      */
+const COMMONS_SEATS=7;
+const COMMONS_QUORUM=3;
+const LORDS_MAX=5;
+
+const BILL_KINDS=[
+  {v:"public",l:"Public bill",short:"PUBLIC",cite:"s25(1)",lords:true,assent:true,
+   rule:"A majority of the members present and voting in each House, then the Royal Assent.",
+   commonsTest:"majority"},
+  {v:"money",l:"Money bill",short:"MONEY",cite:"s25(2)",lords:true,assent:true,commonsOnly:true,
+   rule:"Deals solely with taxation or public money, so it may originate only in the House of Commons.",
+   commonsTest:"majority"},
+  {v:"constitutional",l:"Bill to alter the Constitution",short:"CONSTITUTIONAL",cite:"s46(1)",lords:true,assent:true,
+   rule:"Not fewer than five of the seven members of the Commons. If the Lords does not pass it, the Commons may pass it a second time by that same majority.",
+   commonsTest:"five_of_seven"},
+  {v:"confidence",l:"Motion of no confidence",short:"CONFIDENCE",cite:"s31(2)",lords:false,assent:false,commonsOnly:true,
+   rule:"A majority of all the members of the House of Commons — four of seven. It goes neither to the Lords nor for assent.",
+   commonsTest:"all_members"},
+];
+const kindOf=v=>BILL_KINDS.find(k=>k.v===v)||BILL_KINDS[0];
+
+const STAGES={
+  draft:    {l:"Introduced",           tag:"grey",  desc:"Introduced but not yet before a House."},
+  commons:  {l:"Before the Commons",   tag:"blue",  desc:"The House of Commons is dividing on this bill."},
+  lords:    {l:"Before the Lords",     tag:"teal",  desc:"Passed the Commons; the House of Lords is considering it."},
+  blocked:  {l:"Rejected by the Lords",tag:"amber", desc:"The Lords declined it. Under s25(3) the Commons may pass it a second time, and it then goes for assent regardless."},
+  reconsider:{l:"Second Commons reading",tag:"blue",desc:"The Commons is dividing a second time, invoking its primacy under s25(3)."},
+  assent:   {l:"Awaiting Royal Assent", tag:"amber",desc:"Passed. It becomes law when the Sovereign signifies assent."},
+  act:      {l:"Act of Parliament",    tag:"green", desc:"Assented to and in force."},
+  carried:  {l:"Carried",              tag:"green", desc:"Carried by the House."},
+  failed:   {l:"Not carried",          tag:"red",   desc:"The question was resolved in the negative."},
+};
+const stageOf=s=>STAGES[s]||STAGES.draft;
+
+/* ── office ──────────────────────────────────────────────────────────────────
+   Wildenian office is a field on the shared account, conferred here on Wilden's
+   own service. Who may confer what follows the Constitution: the Sovereign
+   appoints the Prime Minister the Commons has elected (s28), the Lords and the
+   Ministers on the Prime Minister's advice (s23, s29), and the Justices by
+   commission (s37). The site owner's account stands outside all of it and may
+   appoint the Sovereign, which is the only way the first one gets there.       */
+const OFFICES=[
+  {v:"",              l:"No office",                       short:"NONE",       tag:"grey",  house:null,
+   note:"Holds no office in Wilden. Citizenship is recorded in the Ministry of Foreign Affairs."},
+  {v:"mp",            l:"Member of the House of Commons",  short:"MP",         tag:"blue",  house:"commons",
+   note:"One of the seven elected members. Votes in every division of the Commons."},
+  {v:"speaker",       l:"Speaker of the House of Commons", short:"SPEAKER",    tag:"blue",  house:"commons",
+   note:"Chosen by the Commons from its own members. Presides, and votes only where the votes are otherwise equal."},
+  {v:"pm",            l:"Prime Minister",                  short:"PRIME MIN.", tag:"green", house:"commons",
+   note:"Head of His Majesty's Government, elected by the Commons and appointed by the Sovereign. Sits and votes as a member."},
+  {v:"lord",          l:"Lord",                            short:"LORD",       tag:"teal",  house:"lords",
+   note:"Sits in the House of Lords, the chamber of review. Appointed by the Sovereign on the Prime Minister's advice."},
+  {v:"appointed",     l:"Appointed Minister",              short:"APPOINTED",  tag:"amber", house:null,
+   note:"A Minister who sits in neither House, by exception granted under s30(3). Answerable to Parliament, but holds no vote."},
+  {v:"justice",       l:"Justice of the Crown High Court", short:"JUSTICE",    tag:"grey",  house:null,
+   note:"A Justice of the Crown High Court. May not sit as a member of either House (s19(3))."},
+  {v:"chief_justice", l:"Chief Justice",                   short:"CHIEF JUS.", tag:"grey",  house:null,
+   note:"Presides over the Crown High Court. May not sit as a member of either House."},
+  {v:"sovereign",     l:"The Sovereign",                   short:"SOVEREIGN",  tag:"green", house:null,
+   note:"Head of State. Reigns and does not govern; grants the Royal Assent and appoints on advice."},
+];
+const officeOf=v=>OFFICES.find(o=>o.v===String(v||""))||OFFICES[0];
+
+const wxRole=u=>String((u&&u.wxRole)||"");
+const isOwner=u=>!!u&&u.role==="emperor";     // the site owner, outside the constitution
+// The network administrator — the owner, or anyone granted sysAdmin on the
+// Vintranet. Not a Wildenian office: a moderation power over the estate.
+const isSysAdminU=u=>!!u&&(u.role==="emperor"||u.sysAdmin===true);
+const isSovereign=u=>wxRole(u)==="sovereign";
+const isPM=u=>wxRole(u)==="pm";
+const isSpeaker=u=>wxRole(u)==="speaker";
+const inCommons=u=>["mp","speaker","pm"].includes(wxRole(u));
+const inLords=u=>wxRole(u)==="lord";
+// Who keeps the business of the House moving: the Speaker presides, the Prime
+// Minister leads the Government's programme, and the Sovereign summons.
+const canPreside=u=>isSpeaker(u)||isPM(u)||isSovereign(u)||isOwner(u);
+const canIntroduce=u=>inCommons(u)||inLords(u)||canPreside(u);
+
+// Which offices this account may confer.
+function grantableBy(actor){
+  if(isOwner(actor)) return OFFICES.map(o=>o.v);
+  if(isSovereign(actor)) return OFFICES.filter(o=>o.v!=="sovereign").map(o=>o.v);
+  if(isPM(actor)) return ["","mp","lord","appointed"];
+  if(isSpeaker(actor)) return ["","mp"];
+  return [];
+}
+const canAppoint=u=>grantableBy(u).length>0;
+const mayEditOffice=(actor,target)=>{
+  const g=grantableBy(actor);
+  return g.length>0&&g.includes(String(target.wxRole||""));
+};
+
+/* ═══════════ DIVISIONS ════════════════════════════════════════════════════
+   The Speaker's vote is set aside and applied only if the House is otherwise
+   equal, exactly as s20(2) requires — so it is counted last, and only then.  */
+function division(bill,votes,house,members,speaker){
+  const cast={};
+  Object.values(votes||{}).forEach(v=>{
+    if(v.billId===bill.id&&v.house===house&&v.round===(bill.round||1))
+      cast[String(v.username||"").toLowerCase()]=v.vote;
+  });
+  const speakerU=speaker?String(speaker.username||"").toLowerCase():null;
+  // In the Commons the Speaker is a member, but does not vote with the House.
+  const voting=members.filter(m=>String(m.username||"").toLowerCase()!==speakerU);
+  const tally=(list)=>{
+    let aye=0,no=0,abstain=0;
+    list.forEach(m=>{const v=cast[String(m.username||"").toLowerCase()];
+      if(v==="aye")aye++;else if(v==="no")no++;else if(v==="abstain")abstain++;});
+    return {aye,no,abstain};
+  };
+  const t=tally(voting);
+  const turnout=t.aye+t.no+t.abstain;
+  const k=kindOf(bill.kind);
+  const test=house==="commons"?k.commonsTest:"majority";
+
+  let carried=false,requirement="",met=true,casting=null;
+  if(test==="five_of_seven"){
+    requirement="Not fewer than 5 of the "+COMMONS_SEATS+" members in favour";
+    carried=t.aye>=5;
+  } else if(test==="all_members"){
+    requirement="A majority of all "+COMMONS_SEATS+" members — 4 in favour";
+    carried=t.aye>=4;
+  } else {
+    requirement="A majority of the members present and voting";
+    carried=t.aye>t.no;
+    // The Speaker's casting vote, and only on a tie.
+    if(t.aye===t.no&&speakerU&&cast[speakerU]){
+      casting=cast[speakerU];
+      carried=casting==="aye";
+    }
+  }
+  // Quorum binds the Commons only (s21(1)).
+  if(house==="commons"&&turnout<COMMONS_QUORUM){ met=false; carried=false; }
+  return {...t,turnout,cast,carried,requirement,quorate:met,casting,speakerVote:speakerU?cast[speakerU]:null,
+    seats:members.length,voting:voting.length};
+}
+
+/* ── UI atoms ────────────────────────────────────────────────────────────── */
+function Tag({t,children}){return <span className={"tag "+(t||"grey")}>{children}</span>;}
+function Btn({children,onClick,kind,small,disabled,type}){
+  return <button type={type||"button"} className={"btn"+(kind?" "+kind:"")+(small?" small":"")}
+    disabled={disabled} onClick={disabled?undefined:onClick}>{children}</button>;
+}
+function ArmBtn({label,confirmLabel,onConfirm,small}){
+  const [a,setA]=useState(false);
+  useEffect(()=>{if(!a)return;const t=setTimeout(()=>setA(false),4000);return()=>clearTimeout(t);},[a]);
+  return a?<Btn kind="warn" small={small} onClick={()=>{setA(false);onConfirm();}}>{confirmLabel||"Confirm"}</Btn>
+    :<Btn kind="sec" small={small} onClick={()=>setA(true)}>{label}</Btn>;
+}
+function Field({label,hint,children}){
+  return <div className="field"><label>{label}</label>{hint&&<div className="hint">{hint}</div>}{children}</div>;
+}
+function Inset({children,blue}){return <div className={"inset"+(blue?" blue":"")}>{children}</div>;}
+function Stat({n,l}){return <div className="stat"><div className="n">{n}</div><div className="l">{l}</div></div>;}
+function Empty({children}){return <p className="hint" style={{marginTop:12}}>{children}</p>;}
+function Cite(){return null;}  /* Constitutional citations removed — kept as a no-op so existing <Cite> usages render nothing. */
+function Person({account,size=40,office}){
+  if(!account) return <span className="vacant">Vacant</span>;
+  const n=account.mcName||account.username;
+  return <span className="person">
+    <img src={mcFaceUrl(n)} alt="" width={size} height={size} loading="lazy"
+      onError={e=>{e.currentTarget.style.visibility="hidden";}} style={{width:size,height:size}}/>
+    <span><span className="nm">{account.displayName||account.username}</span>
+      {account.displayName&&<span className="un">{account.username}</span>}
+      {office&&<span className="un">{office}</span>}</span>
+  </span>;
+}
+function Notif({title,children,ok}){
+  return <div className={"notif"+(ok?" ok":"")}><div className="head">{title}</div><div className="body">{children}</div></div>;
+}
+
+/* ═══════════ HOME ════════════════════════════════════════════════════════ */
+/* ── the citizen's own standing ───────────────────────────────────────────────
+   A citizen of Wilden — and only a citizen — sees where they stand at a glance,
+   modelled on the Empire's citizen portal: citizenship, office, passport, any
+   visa they hold to enter Wilden, and the documents and records held on them.
+   All of it is read from the Ministry of Foreign Affairs' registers and the
+   shared account; nothing new is stored. Cards for things a person either holds
+   or doesn't — a visa, an identity card, a warrant, a registered vessel — appear
+   only when they hold one. Services not yet built (the courts, clearance, an
+   identity register) are shown as forthcoming. */
+const WX_CIT_LABEL={citizen:"Citizen",naturalised:"Naturalised",resident:"Resident",alien:"Registered alien",revoked:"Revoked",renounced:"Renounced"};
+const WX_PP_LABEL={ordinary:"Ordinary",official:"Official",diplomatic:"Diplomatic",service:"Service"};
+const WX_VISA_LABEL={pending:"Under review",approved:"Approved",refused:"Refused"};
+function StandingCard({label,value,sub,tone,href,soon}){
+  const top=soon?"var(--grey3)":tone==="good"?"var(--green)":tone==="warn"?"var(--amber)":tone==="alert"?"var(--red)":"var(--blue)";
+  const inner=<div className="card" style={{borderTopColor:top,opacity:soon?0.72:1,height:"100%"}}>
+    <div className="caption">{label}</div>
+    <div style={{fontSize:19,fontWeight:700,lineHeight:1.2,margin:"1px 0 2px",color:soon?"var(--grey4)":tone==="alert"?"var(--red)":"var(--black)"}}>{value}</div>
+    {sub&&<div className="hint" style={{marginBottom:0}}>{sub}</div>}
+  </div>;
+  return href&&!soon?<a href={href} style={{textDecoration:"none",color:"inherit",display:"block"}}>{inner}</a>:inner;
+}
+function MyStanding({user,office,citizen,passport,visa,honours,idCard,warrant,vessel}){
+  const cit=citizen?(WX_CIT_LABEL[citizen.status]||citizen.status):null;
+  const citTone=citizen&&["citizen","naturalised"].includes(citizen.status)?"good":"neutral";
+  const ppValid=passport?(!passport.expires||new Date(passport.expires)>=new Date()):null;
+  const vs=visa?(WX_VISA_LABEL[visa.status]||visa.status):null;
+  const hon=honours||[];
+  const cards=[
+    {label:"Citizenship",tone:citTone,href:"wmfa.html",
+      value:cit||"Citizen",sub:citizen&&citizen.since?"Since "+citizen.since:"Ministry of Foreign Affairs"},
+    {label:"Office",tone:office&&office!=="No office"?"good":"neutral",
+      value:office||"No office",sub:office&&office!=="No office"?"Government of Wilden":"No office held"},
+    {label:"Passport",tone:passport?(ppValid?"good":"warn"):"neutral",href:"wmfa.html",
+      value:passport?passport.number:"None issued",
+      sub:passport?((WX_PP_LABEL[passport.type]||"Passport")+" · "+(ppValid?"Valid":"Expired")):"You do not hold a passport"},
+    // Shown only when the citizen actually holds a visa to enter Wilden.
+    visa&&{label:"Visa to enter Wilden",tone:visa.status==="approved"?"good":"neutral",href:"wmfa.html",
+      value:vs,sub:visa.ref||"Ministry of Foreign Affairs"},
+    {label:"Honours & awards",tone:hon.length?"good":"neutral",
+      value:hon.length?(hon.length+(hon.length===1?" honour":" honours")):"None",
+      sub:hon.length?hon.map(h=>h.title||h.name).filter(Boolean).join(", "):"No honours or awards conferred"},
+    {label:"Judicature",soon:true,value:"Coming soon",sub:"Courts and cases pertaining to you"},
+    {label:"Security clearance",soon:true,value:"Coming soon",sub:"Government vetting"},
+    // Documents & records shown only when held — hidden otherwise (per record).
+    idCard&&{label:"National identity card",tone:"good",value:idCard.number||"Issued",sub:"Wilden identity register"},
+    warrant&&{label:"Active warrant",tone:"alert",value:"Warrant in force",sub:warrant.reason||"See the Judicature"},
+    vessel&&{label:"Maritime vessel",tone:"good",value:vessel.name||vessel.number||"Registered",sub:vessel.port?("Port of "+vessel.port):"Registered vessel"},
+  ].filter(Boolean);
+  return <section style={{border:"1px solid var(--grey3)",background:"var(--grey1)",padding:"16px 18px",marginBottom:26}}>
+    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,flexWrap:"wrap"}}>
+      <Person account={user}/>
+      <div className="caption" style={{marginLeft:"auto",marginBottom:0}}>YOUR STANDING IN WILDEN</div>
+    </div>
+    <div className="grid g3">
+      {cards.map(c=><StandingCard key={c.label} {...c}/>)}
+    </div>
+  </section>;
+}
+function HomeTab({sovereign,pm,speaker,commons,lords,justices,bills,onGo,me}){
+  const all=Object.values(bills||{});
+  const acts=all.filter(b=>b.stage==="act").length;
+  const before=all.filter(b=>["commons","lords","reconsider"].includes(b.stage)).length;
+  const forAssent=all.filter(b=>b.stage==="assent").length;
+  return <div>
+    <h1>Government of Wilden</h1>
+    <p className="lede">Wilden is a sovereign, independent and democratic constitutional monarchy.
+      Use this service to follow Parliament, the Government and the courts.</p>
+
+    {me&&<MyStanding {...me}/>}
+
+    {forAssent>0&&<Notif title="Awaiting the Royal Assent">
+      <p style={{marginBottom:0}}>{forAssent} bill{forAssent!==1?"s have":" has"} passed both Houses and
+        await{forAssent===1?"s":""} the Sovereign's assent. <a href="#" onClick={e=>{e.preventDefault();onGo("parliament");}}>View in Parliament</a>.</p>
+    </Notif>}
+
+    <div className="grid g3" style={{marginBottom:26}}>
+      <Stat n={commons.length+" of "+COMMONS_SEATS} l="Commons seats filled"/>
+      <Stat n={lords.length+" of "+LORDS_MAX} l="Lords appointed"/>
+      <Stat n={before} l="Bills before Parliament"/>
+      <Stat n={acts} l="Acts in force"/>
+    </div>
+
+    <h2>Who's who</h2>
+    <div className="sl">
+      <div className="row"><div className="k">The Sovereign</div><div className="v">
+        {sovereign?<Person account={sovereign}/>:<span className="vacant">Vacant</span>}</div></div>
+      <div className="row"><div className="k">Prime Minister</div><div className="v">
+        {pm?<Person account={pm}/>:<span className="vacant">Vacant — the Commons elects a member (s28(2))</span>}</div></div>
+      <div className="row"><div className="k">Speaker of the Commons</div><div className="v">
+        {speaker?<Person account={speaker}/>:<span className="vacant">Vacant — chosen at the first sitting (s20(1))</span>}</div></div>
+      <div className="row"><div className="k">Chief Justice</div><div className="v">
+        {justices.find(j=>j.wxRole==="chief_justice")
+          ?<Person account={justices.find(j=>j.wxRole==="chief_justice")}/>
+          :<span className="vacant">Vacant</span>}</div></div>
+    </div>
+
+    <h2>The three branches</h2>
+    <div className="grid g3">
+      {[["parliament","Parliament","The Sovereign, the House of Commons and the House of Lords. Bills, divisions and the Acts in force.","s15"],
+        ["government","His Majesty's Government","The Prime Minister, the Cabinet and the Law Officers, responsible to the House of Commons.","s27"],
+        ["judicature","The Judicature","The Crown High Court of Wilden. Independent, and subject only to the law.","s35"]].map(([k,t,d,c])=>(
+        <div key={k} className="card">
+          <h3><a href="#" onClick={e=>{e.preventDefault();onGo(k);}}>{t}</a></h3>
+          <p style={{fontSize:15,marginBottom:10}}>{d}</p>
+          <Cite>{c}</Cite>
+        </div>
+      ))}
+    </div>
+
+    <h2>The Crown</h2>
+    <p>The Sovereign is Head of State. He reigns and does not govern: save where the Constitution
+      provides otherwise, the functions of the Crown are exercised only on the advice of the Prime
+      Minister, the Cabinet or a responsible Minister.</p>
+    <details>
+      <summary>The reserve functions — where the Sovereign acts on His own judgement</summary>
+      <div className="content">
+        <ol style={{paddingLeft:20}}>
+          <li style={{marginBottom:6}}>Appointing as Prime Minister the person best able to command the confidence of the House of Commons.</li>
+          <li style={{marginBottom:6}}>Dismissing a Prime Minister who has lost that confidence and refuses to resign or to advise a dissolution.</li>
+          <li style={{marginBottom:6}}>Ensuring that there is at all times a person able to be appointed Prime Minister.</li>
+          <li>Granting an exception under s30(3), permitting a Minister who sits in neither House.</li>
+        </ol>
+        <p style={{marginTop:10,marginBottom:0}}><Cite>s9</Cite></p>
+      </div>
+    </details>
+    <Inset blue>
+      <p style={{marginBottom:0}}>By constitutional convention, the Sovereign does not withhold assent from a bill
+        duly passed. <Cite>s10(4)</Cite></p>
+    </Inset>
+  </div>;
+}
+
+/* ═══════════ PARLIAMENT ══════════════════════════════════════════════════ */
+function ParliamentTab({commons,lords,speaker,bills,votes,user,accounts,onAction,notify,setBusy}){
+  const [sub,setSub]=useState("business");
+  const all=Object.values(bills||{});
+  const business=all.filter(b=>["commons","lords","reconsider","blocked","assent"].includes(b.stage))
+    .sort((a,b)=>(b.movedAt||b.created||0)-(a.movedAt||a.created||0));
+  const draft=all.filter(b=>b.stage==="draft").sort((a,b)=>(a.created||0)-(b.created||0));
+  const acts=all.filter(b=>b.stage==="act").sort((a,b)=>(b.assentedAt||0)-(a.assentedAt||0));
+  const done=all.filter(b=>["failed","carried"].includes(b.stage)).sort((a,b)=>(b.movedAt||0)-(a.movedAt||0));
+  const SUBS=[["business","Business before Parliament",business.length],["draft","Introduced",draft.length],
+    ["acts","Acts in force",acts.length],["commons","House of Commons",commons.length],
+    ["lords","House of Lords",lords.length],["past","Concluded",done.length]];
+  const p={votes,commons,lords,speaker,user,accounts,onAction,notify,setBusy};
+
+  return <div>
+    <h1>Parliament</h1>
+    <p className="lede">The Parliament of Wilden consists of the Sovereign, the House of Commons and the
+      House of Lords. The power to make laws for the peace, order and good government of Wilden is
+      vested in the Parliament. <Cite>s15</Cite> <Cite>s16</Cite></p>
+
+    <div className="subnav">
+      {SUBS.map(([id,l,n])=>(
+        <button key={id} aria-current={sub===id?"true":undefined} onClick={()=>setSub(id)}>{l}{n>0?" ("+n+")":""}</button>
+      ))}
+    </div>
+
+    {sub==="business"&&<>
+      {business.length===0?<Empty>No bill is before either House.</Empty>
+        :business.map(b=><BillItem key={b.id} bill={b} {...p}/>)}
+    </>}
+    {sub==="draft"&&<>
+      <h2 style={{marginTop:0}}>Introduced, not yet before a House</h2>
+      {draft.length===0?<Empty>Nothing has been introduced.</Empty>:draft.map(b=><BillItem key={b.id} bill={b} {...p}/>)}
+    </>}
+    {sub==="acts"&&<>
+      <h2 style={{marginTop:0}}>Acts of the Parliament of Wilden</h2>
+      <p className="hint">Bills that have passed both Houses and received the Royal Assent. These are in force.</p>
+      {acts.length===0?<Empty>No Acts have yet been assented to.</Empty>:acts.map(b=><BillItem key={b.id} bill={b} {...p}/>)}
+    </>}
+    {sub==="past"&&<>
+      <h2 style={{marginTop:0}}>Concluded business</h2>
+      {done.length===0?<Empty>Nothing concluded.</Empty>:done.map(b=><BillItem key={b.id} bill={b} {...p}/>)}
+    </>}
+
+    {sub==="commons"&&<ChamberCommons commons={commons} speaker={speaker}/>}
+    {sub==="lords"&&<ChamberLords lords={lords}/>}
+  </div>;
+}
+
+function ChamberCommons({commons,speaker}){
+  const vacant=Math.max(0,COMMONS_SEATS-commons.length);
+  return <>
+    <h2 style={{marginTop:0}}>House of Commons</h2>
+    <p>The House of Commons consists of seven elected members, chosen by the citizens of Wilden at a
+      general election held every two months and upon every dissolution. <Cite>s17</Cite> <Cite>s18</Cite></p>
+    <div className="grid g3" style={{marginBottom:24}}>
+      <Stat n={commons.length+" of "+COMMONS_SEATS} l="Seats filled"/>
+      <Stat n={COMMONS_QUORUM} l="Quorum"/>
+      <Stat n={speaker?"Chosen":"Vacant"} l="Speaker"/>
+    </div>
+    <table>
+      <caption>Members</caption>
+      <thead><tr><th>Member</th><th>Office</th><th className="num">Vote</th></tr></thead>
+      <tbody>
+        {commons.map(m=>{const o=officeOf(m.wxRole);const sp=m.wxRole==="speaker";
+          return <tr key={m.username}>
+            <td><Person account={m} size={32}/></td>
+            <td><Tag t={o.tag}>{o.short}</Tag></td>
+            <td className="num">{sp?"Casting only":"Yes"}</td>
+          </tr>;})}
+        {Array.from({length:vacant}).map((_,i)=>(
+          <tr key={"v"+i}><td className="vacant">Vacant seat</td>
+            <td><Tag t="grey">VACANT</Tag></td><td className="num vacant">—</td></tr>
+        ))}
+      </tbody>
+    </table>
+    <Inset>
+      <p style={{marginBottom:0}}>The Speaker presides over the House and maintains order, and votes only where
+        the votes are otherwise equal — a casting vote. <Cite>s20(2)</Cite></p>
+    </Inset>
+  </>;
+}
+
+function ChamberLords({lords}){
+  return <>
+    <h2 style={{marginTop:0}}>House of Lords</h2>
+    <p>The House of Lords is a chamber of review. It considers, revises and may delay bills, and
+      scrutinises the conduct of the Government. It consists of not more than five Lords, appointed
+      by the Sovereign on the advice of the Prime Minister. <Cite>s22</Cite> <Cite>s24</Cite></p>
+    <div className="grid g3" style={{marginBottom:24}}>
+      <Stat n={lords.length+" of "+LORDS_MAX} l="Lords appointed"/>
+      <Stat n="Review" l="Function of the House"/>
+    </div>
+    {lords.length===0?<Empty>No Lords have been appointed.</Empty>
+      :<table>
+        <caption>Lords</caption>
+        <thead><tr><th>Lord</th><th className="num">Tenure</th></tr></thead>
+        <tbody>{lords.map(m=><tr key={m.username}>
+          <td><Person account={m} size={32}/></td>
+          <td className="num">During good behaviour</td></tr>)}</tbody>
+      </table>}
+    <Inset>
+      <p style={{marginBottom:0}}>Where the Lords rejects, or fails within a reasonable time to pass, a bill the
+        Commons has passed, the Commons may in a subsequent session pass it again — and it is then
+        presented for the Royal Assent notwithstanding. The will of the House of Commons prevails.
+        {" "}<Cite>s25(3)</Cite></p>
+    </Inset>
+  </>;
+}
+
+/* ── one bill ────────────────────────────────────────────────────────────── */
+function BillItem({bill,votes,commons,lords,speaker,user,accounts,onAction,notify,setBusy}){
+  const [open,setOpen]=useState(false);
+  const st=stageOf(bill.stage);
+  const k=kindOf(bill.kind);
+  const house=bill.stage==="lords"?"lords":"commons";
+  const members=house==="lords"?lords:commons;
+  const d=division(bill,votes,house,members,house==="commons"?speaker:null);
+  const dividing=["commons","lords","reconsider"].includes(bill.stage);
+  const me=String(user?.username||"").toLowerCase();
+  const iSit=members.some(m=>String(m.username||"").toLowerCase()===me);
+  const iAmSpeaker=isSpeaker(user)&&house==="commons";
+  const myVote=d.cast[me];
+  const sponsor=accounts[String(bill.sponsor||"").toLowerCase()];
+
+  const cast=async(v)=>{
+    setBusy("Recording your vote");
+    const res=await onAction("vote",{bill,house,vote:v});
+    setBusy(null);
+    notify(res.ok?"Your vote has been recorded as "+v.toUpperCase()+".":res.error,res.ok);
+  };
+  const pct=n=>d.turnout>0?(n/d.turnout*100):0;
+
+  return <div className="card" style={{marginBottom:14,borderTopColor:
+      st.tag==="green"?"var(--green)":st.tag==="red"?"var(--red)":st.tag==="amber"?"var(--amber)":"var(--blue)"}}>
+    <div style={{display:"flex",gap:12,alignItems:"flex-start",flexWrap:"wrap"}}>
+      <div style={{flex:1,minWidth:200}}>
+        <div className="caption">{bill.number||"Bill"} · {k.l}</div>
+        <h3 style={{margin:"2px 0 8px"}}>{bill.title}</h3>
+        <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+          <Tag t={st.tag}>{st.l}</Tag><Cite>{k.cite}</Cite>
+          {bill.round>1&&<Tag t="amber">SECOND PASSAGE</Tag>}
+        </div>
+      </div>
+      <Btn kind="sec" small onClick={()=>setOpen(o=>!o)}>{open?"Hide detail":"View detail"}</Btn>
+    </div>
+
+    {dividing&&<div style={{marginTop:14}}>
+      <div className="caption">Division in the {house==="lords"?"House of Lords":"House of Commons"}</div>
+      <div className="bar">
+        <span style={{width:pct(d.aye)+"%",background:"var(--green)"}}/>
+        <span style={{width:pct(d.no)+"%",background:"var(--red)"}}/>
+        <span style={{width:pct(d.abstain)+"%",background:"var(--grey3)"}}/>
+      </div>
+      <div className="legend">
+        <span><b>{d.aye}</b> Aye</span><span><b>{d.no}</b> No</span><span><b>{d.abstain}</b> Abstain</span>
+        <span style={{marginLeft:"auto"}}>{d.requirement}</span>
+      </div>
+      {!d.quorate&&<p className="hint" style={{marginTop:8,marginBottom:0}}>
+        Quorum not met — {COMMONS_QUORUM} members must take part before the question can be decided. <Cite>s21(1)</Cite></p>}
+      {d.casting&&<p className="hint" style={{marginTop:8,marginBottom:0}}>
+        The House was equally divided; the Speaker's casting vote was given <b>{d.casting.toUpperCase()}</b>. <Cite>s20(2)</Cite></p>}
+    </div>}
+
+    {open&&<div style={{marginTop:16,borderTop:"1px solid var(--grey3)",paddingTop:16}}>
+      <Inset><p style={{marginBottom:0}}>{k.rule}</p></Inset>
+      {bill.summary&&<p>{bill.summary}</p>}
+      {/* The bill itself is kept in a Google Doc, as in the Bundeskongress. */}
+      {bill.gdoc_url&&<div style={{marginBottom:16}}>
+        <a href={bill.gdoc_url} target="_blank" rel="noopener noreferrer"
+          style={{display:"inline-block",border:"1px solid var(--grey3)",padding:"7px 15px",background:"#fafafa",
+            fontSize:14,textDecoration:"none",color:"inherit"}}>
+          📄 View the bill document →
+        </a>
+      </div>}
+
+      <div className="sl">
+        <div className="row"><div className="k">Stage</div><div className="v">{st.l} — {st.desc}</div></div>
+        {sponsor&&<div className="row"><div className="k">Introduced by</div><div className="v">{sponsor.displayName||sponsor.username}</div></div>}
+        <div className="row"><div className="k">Introduced</div><div className="v">{fmtDate(bill.created)}</div></div>
+        {bill.assentedAt&&<div className="row"><div className="k">Royal Assent</div><div className="v">{fmtDate(bill.assentedAt)}</div></div>}
+      </div>
+
+      {(dividing||["assent","act","failed","carried","blocked"].includes(bill.stage))&&members.length>0&&<table>
+        <caption>Division list — {house==="lords"?"Lords":"Commons"}</caption>
+        <thead><tr><th>Member</th><th className="num">Vote</th></tr></thead>
+        <tbody>{members.map(m=>{
+          const u=String(m.username||"").toLowerCase();
+          const v=d.cast[u];
+          const sp=m.wxRole==="speaker"&&house==="commons";
+          return <tr key={m.username}>
+            <td><Person account={m} size={28} office={sp?"Speaker — casting vote only":null}/></td>
+            <td className="num">{v?<Tag t={v==="aye"?"green":v==="no"?"red":"grey"}>{v.toUpperCase()}</Tag>
+              :<span className="vacant">Not voted</span>}</td>
+          </tr>;})}</tbody>
+      </table>}
+
+      {dividing&&iSit&&<div style={{border:"1px solid var(--grey3)",padding:"16px 18px",marginBottom:16}}>
+        <h3 style={{marginTop:0}}>Your vote{myVote?" — currently "+myVote.toUpperCase():""}</h3>
+        {iAmSpeaker&&<p className="hint">As Speaker you vote only where the House is otherwise equal. Your
+          vote is set aside and counted only if the division ties.</p>}
+        <div className="btn-row">
+          <Btn onClick={()=>cast("aye")}>Aye</Btn>
+          <Btn kind="warn" onClick={()=>cast("no")}>No</Btn>
+          <Btn kind="sec" onClick={()=>cast("abstain")}>Abstain</Btn>
+        </div>
+        <p className="hint" style={{marginTop:10,marginBottom:0}}>You may change your vote until the question is put.</p>
+      </div>}
+      {dividing&&!iSit&&<p className="hint">
+        {user?"Only members of the House now dividing may vote.":"Sign in as a member to take part in the division."}</p>}
+
+      <div className="btn-row">
+        {canPreside(user)&&bill.stage==="draft"&&<Btn onClick={async()=>{
+          setBusy("Reading the bill");
+          const res=await onAction("stage",{bill,stage:"commons"});
+          setBusy(null);notify(res.ok?"The bill is now before the House of Commons.":res.error,res.ok);
+        }}>Read before the Commons</Btn>}
+
+        {canPreside(user)&&dividing&&<Btn onClick={async()=>{
+          setBusy("Putting the question");
+          const res=await onAction("putQuestion",{bill,house,carried:d.carried,quorate:d.quorate});
+          setBusy(null);
+          notify(res.ok?(res.message||"The question has been put."):res.error,res.ok);
+        }} disabled={!d.quorate}>Put the question</Btn>}
+
+        {canPreside(user)&&bill.stage==="blocked"&&<Btn onClick={async()=>{
+          setBusy("Reading a second time");
+          const res=await onAction("stage",{bill,stage:"reconsider",round:(bill.round||1)+1});
+          setBusy(null);notify(res.ok?"The Commons is dividing a second time under s25(3).":res.error,res.ok);
+        }}>Pass a second time (s25(3))</Btn>}
+
+        {isSovereign(user)&&bill.stage==="assent"&&<Btn onClick={async()=>{
+          setBusy("Signifying the Royal Assent");
+          const res=await onAction("assent",{bill});
+          setBusy(null);notify(res.ok?"Royal Assent signified. The bill is now an Act.":res.error,res.ok);
+        }}>Signify the Royal Assent</Btn>}
+
+        {canPreside(user)&&["draft","failed"].includes(bill.stage)&&
+          <ArmBtn small label="Withdraw" confirmLabel="Withdraw this bill" onConfirm={async()=>{
+            setBusy("Withdrawing");
+            const res=await onAction("withdraw",{bill});
+            setBusy(null);notify(res.ok?"The bill has been withdrawn.":res.error,res.ok);
+          }}/>}
+
+        {/* The service administrator's expunge — bill and divisions erased outright. */}
+        {isSysAdminU(user)&&
+          <ArmBtn small label="Expunge" confirmLabel="Erase entirely — no trace?" onConfirm={async()=>{
+            setBusy("Expunging");
+            const res=await onAction("expunge",{bill});
+            setBusy(null);notify(res.ok?"Expunged — no record remains.":res.error,res.ok);
+          }}/>}
+      </div>
+    </div>}
+  </div>;
+}
+
+/* ═══════════ GOVERNMENT ══════════════════════════════════════════════════ */
+function GovernmentTab({pm,cabinet,appointed,gov,lords,commons}){
+  const posts=gov.cabinet||{};
+  const members=[...cabinet,...appointed];
+  const seatOf=(a)=>{
+    const u=String(a.username||"").toLowerCase();
+    if(commons.some(m=>String(m.username||"").toLowerCase()===u)) return "House of Commons";
+    if(lords.some(m=>String(m.username||"").toLowerCase()===u)) return "House of Lords";
+    return "Appointed Minister (s30(3))";
+  };
+  return <div>
+    <h1>His Majesty's Government</h1>
+    <p className="lede">The executive authority of Wilden is vested in the Sovereign and is exercised, on
+      His behalf, by His Majesty's Government. The Government holds office for so long as it commands
+      the confidence of the House of Commons. <Cite>s27</Cite> <Cite>s31(1)</Cite></p>
+
+    <div className="grid g2" style={{marginBottom:8}}>
+      <div className="card">
+        <h3 style={{marginTop:0}}><a href="wmfa.html">Ministry of Foreign Affairs ↗</a></h3>
+        <p style={{fontSize:15,marginBottom:0}}>Citizenship and passports. Citizenship is granted here and is
+          what makes a person eligible to hold office.</p>
+      </div>
+      <div className="card">
+        <h3 style={{marginTop:0}}><a href="homeoffice.html">Home Office ↗</a></h3>
+        <p style={{fontSize:15,marginBottom:0}}>National identity cards, and the Royal Wilden Constabulary,
+          under the Secretary of State for Home Affairs.</p>
+      </div>
+    </div>
+
+    <h2>The Prime Minister</h2>
+    {pm?<div className="card" style={{maxWidth:460}}><Person account={pm} size={52}/></div>
+      :<Inset><p style={{marginBottom:0}}>There is no Prime Minister. The House of Commons elects one of its
+        members, and the Sovereign thereupon appoints that person. <Cite>s28(2)</Cite></p></Inset>}
+
+    <h2>The Cabinet</h2>
+    <p>The Cabinet consists of the Prime Minister and the Ministers of the Crown chosen by him. A Minister
+      must be a member of the Commons or a Lord, unless the Sovereign grants an exception. <Cite>s29</Cite> <Cite>s30</Cite></p>
+    {members.length===0?<Empty>No Ministers have been appointed.</Empty>
+      :<table>
+        <caption>Ministers of the Crown</caption>
+        <thead><tr><th>Minister</th><th>Department</th><th>Seat</th></tr></thead>
+        <tbody>{members.map(m=><tr key={m.username}>
+          <td><Person account={m} size={32}/></td>
+          <td>{posts[String(m.username||"").toLowerCase()]||<span className="vacant">Not assigned</span>}</td>
+          <td>{seatOf(m)}</td></tr>)}</tbody>
+      </table>}
+
+    <h2>Confidence</h2>
+    <Inset blue>
+      <p>If the House of Commons resolves, by a vote of a majority of all its members, that it has no
+        confidence in the Government, the Prime Minister must either tender the Government's resignation —
+        whereupon the Commons elects a new Prime Minister — or advise the Sovereign to dissolve
+        Parliament and hold a general election. <Cite>s31(2)</Cite></p>
+      <p style={{marginBottom:0}}>A majority of all the members is <b>four of seven</b>, whatever the turnout.</p>
+    </Inset>
+
+    <h2>The Law Officers</h2>
+    <p>The Attorney-General and the Solicitor-General are the principal legal advisers to the Government.
+      Any function of the Attorney-General may be exercised by the Solicitor-General. <Cite>s33</Cite></p>
+    <div className="sl">
+      {["Attorney-General","Solicitor-General"].map(post=>{
+        const holder=members.find(m=>posts[String(m.username||"").toLowerCase()]===post);
+        return <div className="row" key={post}><div className="k">{post}</div>
+          <div className="v">{holder?<Person account={holder} size={32}/>:<span className="vacant">Vacant</span>}</div></div>;
+      })}
+    </div>
+
+    <details>
+      <summary>The Oath of Allegiance</summary>
+      <div className="content">
+        <p style={{fontStyle:"italic"}}>“I, [name], do swear that I will bear true allegiance to His Majesty King
+          William, His Heirs and Successors according to law, and that I will faithfully and truly serve
+          Wilden in the office of [office] and uphold this Constitution and the laws of Wilden, without
+          fear or favour, affection or ill-will. So help me God!”</p>
+        <p style={{marginBottom:0}}>Taken by the Prime Minister and every Minister before entering upon the
+          duties of office. <Cite>s34</Cite> <Cite>Schedule</Cite></p>
+      </div>
+    </details>
+  </div>;
+}
+
+/* ═══════════ JUDICATURE ══════════════════════════════════════════════════ */
+function JudicatureTab({justices}){
+  const chief=justices.find(j=>j.wxRole==="chief_justice")||null;
+  const puisne=justices.filter(j=>j.wxRole==="justice");
+  return <div>
+    <h1>The Judicature</h1>
+    <p className="lede">The judicial power of Wilden is vested in the Crown High Court of Wilden and in such
+      other courts as Parliament may establish. The Crown High Court is a superior court of
+      record. <Cite>s35</Cite></p>
+
+    <Notif title="Independence of the judiciary">
+      <p style={{marginBottom:0}}>The Justices of the Crown High Court are independent and, in the exercise of
+        their judicial functions, are subject only to the law. No person or authority may interfere with a
+        Justice in the discharge of those functions. <Cite>s36</Cite></p>
+    </Notif>
+
+    <h2>The Crown High Court</h2>
+    <div className="sl">
+      <div className="row"><div className="k">Chief Justice</div>
+        <div className="v">{chief?<Person account={chief} size={40}/>:<span className="vacant">Vacant</span>}</div></div>
+      <div className="row"><div className="k">Justices</div>
+        <div className="v">{puisne.length===0?<span className="vacant">None appointed</span>
+          :<div style={{display:"flex",flexDirection:"column",gap:10}}>{puisne.map(j=><Person key={j.username} account={j} size={32}/>)}</div>}</div></div>
+      <div className="row"><div className="k">Number of Justices</div>
+        <div className="v">Determined by the Sovereign <Cite>s35(2)</Cite></div></div>
+    </div>
+
+    <h2>Appointment and tenure</h2>
+    <div className="grid g2">
+      <div className="card">
+        <h3>Appointment</h3>
+        <p style={{fontSize:15,marginBottom:8}}>The Justices, including the Chief Justice, are appointed by the
+          Sovereign by commission. Before an appointment is made, the Attorney-General consults the Prime
+          Minister and the Sovereign.</p>
+        <Cite>s37</Cite>
+      </div>
+      <div className="card">
+        <h3>Tenure</h3>
+        <p style={{fontSize:15,marginBottom:8}}>A Justice holds office during good behaviour, and may be removed
+          only by the Sovereign on an address of the House of Commons praying for removal on the ground of
+          proved misbehaviour or incapacity.</p>
+        <Cite>s38</Cite>
+      </div>
+    </div>
+
+    <Inset>
+      <p style={{marginBottom:0}}>A Justice of the Crown High Court may not sit as a member of either
+        House. <Cite>s19(3)</Cite></p>
+    </Inset>
+
+    <h2>Fundamental rights</h2>
+    <p>Every person in Wilden is entitled, subject only to such limits as are prescribed by law and are
+      reasonable in a free and democratic society, to — <Cite>s41</Cite></p>
+    <ul style={{paddingLeft:22,marginBottom:16}}>
+      {["equality before the law and equal protection of the law",
+        "liberty and security of the person, and freedom from arbitrary arrest or detention",
+        "a fair and public hearing before an independent court",
+        "freedom of thought, conscience, expression, assembly and association",
+        "freedom of movement, and the right of every citizen to enter and leave Wilden and, on application, to be issued a passport",
+        "the peaceful enjoyment of property, save where taken under law"].map((r,i)=>(
+        <li key={i} style={{marginBottom:6}}>{r}</li>
+      ))}
+    </ul>
+  </div>;
+}
+
+/* ═══════════ PANEL ═══════════════════════════════════════════════════════ */
+function PanelTab({user,bills,gov,accounts,citizens,cabinetish,onAction,notify,setBusy}){
+  const secs=[
+    ...(canIntroduce(user)?[["bill","Introduce a bill"]]:[]),
+    ...(canAppoint(user)?[["office","Appointments"]]:[]),
+    ...(isPM(user)||isSovereign(user)||isOwner(user)?[["cabinet","Departments"]]:[]),
+  ];
+  const [sec,setSec]=useState(secs[0]?secs[0][0]:"bill");
+  const o=officeOf(wxRole(user));
+  return <div>
+    <h1>Manage</h1>
+    <Inset blue>
+      <p style={{marginBottom:0}}>Signed in as <b>{user.displayName||user.username}</b> —{" "}
+        {wxRole(user)?o.l:(isOwner(user)?"service administrator":"no Wildenian office")}.</p>
+    </Inset>
+    <div className="subnav">
+      {secs.map(([id,l])=><button key={id} aria-current={sec===id?"true":undefined} onClick={()=>setSec(id)}>{l}</button>)}
+    </div>
+    {sec==="bill"&&<BillForm bills={bills} user={user} onAction={onAction} notify={notify} setBusy={setBusy}/>}
+    {sec==="office"&&<OfficeForm user={user} accounts={accounts} citizens={citizens} onAction={onAction} notify={notify} setBusy={setBusy}/>}
+    {sec==="cabinet"&&<DeptForm gov={gov} members={cabinetish} onAction={onAction} notify={notify} setBusy={setBusy}/>}
+  </div>;
+}
+
+function BillForm({bills,user,onAction,notify,setBusy}){
+  const [title,setTitle]=useState("");const [kind,setKind]=useState("public");
+  const [number,setNumber]=useState("");const [summary,setSummary]=useState("");
+  const [gdoc,setGdoc]=useState("");const [saving,setSaving]=useState(false);
+  const suggested=useMemo(()=>"Bill "+String(Object.values(bills||{}).length+1).padStart(3,"0"),[bills]);
+  const k=kindOf(kind);
+  const lordsOnly=inLords(user)&&!inCommons(user);
+  return <div style={{maxWidth:640}}>
+    <h2 style={{marginTop:0}}>Introduce a bill</h2>
+    <Field label="Type of bill">
+      <select value={kind} onChange={e=>setKind(e.target.value)}>
+        {BILL_KINDS.map(b=><option key={b.v} value={b.v}>{b.l}</option>)}
+      </select>
+    </Field>
+    <Inset blue><p style={{marginBottom:0}}>{k.rule} <Cite>{k.cite}</Cite></p></Inset>
+    {k.commonsOnly&&lordsOnly&&<div className="err"><div className="t">This bill may not originate here</div>
+      <p style={{marginBottom:0}}>A {k.l.toLowerCase()} may originate only in the House of Commons.</p></div>}
+    <Field label="Number"><input type="text" value={number} onChange={e=>setNumber(e.target.value)} placeholder={suggested}/></Field>
+    <Field label="Short title"><input type="text" value={title} onChange={e=>setTitle(e.target.value)}/></Field>
+    <Field label="Summary" hint="One line on what the bill does."><input type="text" value={summary} onChange={e=>setSummary(e.target.value)}/></Field>
+    <Field label="Bill document" hint="The text of the bill is kept in a Google Doc. Paste its link here, shared so the House may read it.">
+      <input type="text" value={gdoc} onChange={e=>setGdoc(e.target.value)}
+        placeholder="https://docs.google.com/document/d/…"/>
+    </Field>
+    <Btn disabled={!title.trim()||saving||(k.commonsOnly&&lordsOnly)} onClick={async()=>{
+      setSaving(true);setBusy("Introducing the bill");
+      const res=await onAction("introduce",{title:title.trim(),kind,number:(number.trim()||suggested),
+        summary:summary.trim(),gdoc_url:gdoc.trim()});
+      setBusy(null);setSaving(false);
+      if(res.ok){setTitle("");setNumber("");setSummary("");setGdoc("");notify("The bill has been introduced.",true);}
+      else notify(res.error,false);
+    }}>{saving?"Introducing…":"Introduce the bill"}</Btn>
+    <p className="hint" style={{marginTop:12}}>The bill is introduced but does not go before a House until it is read.</p>
+  </div>;
+}
+
+function OfficeForm({user,accounts,citizens,onAction,notify,setBusy}){
+  const [q,setQ]=useState("");
+  const grants=grantableBy(user);
+  const query=q.trim().toLowerCase();
+  const isCit=a=>citizens.has(String(a.username||"").toLowerCase());
+  // Only a citizen may hold office. The roll is the citizens plus anyone who already
+  // holds an office (so a legacy holder can still be removed); a search reaches the
+  // whole network, but a non-citizen there cannot be appointed until the Ministry of
+  // Foreign Affairs grants them citizenship.
+  const list=Object.values(accounts)
+    .filter(a=>{
+      if(query) return ((a.displayName||"")+" "+(a.username||"")).toLowerCase().includes(query);
+      return isCit(a)||String(a.wxRole||"")!=="";
+    })
+    .sort((a,b)=>{
+      const rank=v=>{const i=OFFICES.findIndex(o=>o.v===String(v||""));return v?(OFFICES.length-i):99;};
+      const d=rank(a.wxRole)-rank(b.wxRole);
+      return d!==0?d:((a.displayName||a.username)||"").localeCompare((b.displayName||b.username)||"");
+    });
+  // An office (past "citizen") needs citizenship. The Crown is the one exception —
+  // the Sovereign is above citizenship, and is the administrator's to appoint.
+  const needsCit=v=>!!v&&v!=="sovereign";
+  return <div>
+    <h2 style={{marginTop:0}}>Appointments</h2>
+    <Inset blue>
+      <p style={{marginBottom:0}}>{
+        isOwner(user)?"As the service administrator you may confer any office, including that of the Sovereign — which is how the first one is filled."
+        :isSovereign(user)?"As Sovereign you appoint the Prime Minister the Commons has elected, the Lords and Ministers on the Prime Minister's advice, and the Justices by commission."
+        :isPM(user)?"As Prime Minister you advise on the appointment of Lords and Ministers, and may seat the members returned at a general election. The Prime Minister's own office is the Commons' to elect."
+        :"As Speaker you may seat the members returned at a general election."
+      }</p>
+    </Inset>
+    <p className="hint">Only citizens of Wilden may hold office. Citizenship is granted by the{" "}
+      <a href="wmfa.html">Ministry of Foreign Affairs</a>. Conferring an office changes only a person's
+      standing in Wilden.</p>
+    <div className="field" style={{maxWidth:460}}>
+      <label htmlFor="q">Search for a person</label>
+      <input id="q" type="text" value={q} onChange={e=>setQ(e.target.value)} placeholder="Name or username"/>
+    </div>
+    {list.length===0?<Empty>{query?"No account matches that.":"No citizens to appoint yet. Grant citizenship in the Ministry of Foreign Affairs first."}</Empty>
+      :<table>
+        <caption>Office-holders</caption>
+        <thead><tr><th>Person</th><th>Citizenship</th><th>Office</th><th className="num">Confer</th></tr></thead>
+        <tbody>{list.map(a=>{
+          const cur=String(a.wxRole||"");const o=officeOf(cur);
+          const editable=mayEditOffice(user,a);const cit=isCit(a);
+          const opts=OFFICES.filter(x=>grants.includes(x.v)&&(cit||!needsCit(x.v)||x.v===cur));
+          return <tr key={a.username}>
+            <td><Person account={a} size={32}/></td>
+            <td><Tag t={cit?"green":"grey"}>{cit?"Citizen":"Not a citizen"}</Tag></td>
+            <td><Tag t={o.tag}>{o.short}</Tag></td>
+            <td className="num" style={{minWidth:240}}>
+              {editable
+                ?<><select value={cur} onChange={async e=>{
+                    const v=e.target.value;
+                    setBusy(v?"Conferring office":"Removing from office");
+                    const res=await onAction("office",{account:a,office:v});
+                    setBusy(null);
+                    notify(res.ok?((a.displayName||a.username)+(v?" — "+officeOf(v).l:" removed from office")):res.error,res.ok);
+                  }}>
+                    {opts.map(x=><option key={x.v} value={x.v}>{x.l}</option>)}
+                  </select>
+                  {!cit&&<div className="hint" style={{margin:"5px 0 0",textAlign:"left"}}>Grant citizenship to appoint them.</div>}</>
+                :<span className="vacant">Not yours to confer</span>}
+            </td>
+          </tr>;})}</tbody>
+      </table>}
+  </div>;
+}
+
+// The Secretary of State for Home Affairs administers the Home Office, which
+// runs the Royal Wilden Constabulary. The older "Minister of Home Affairs" is
+// kept so an existing assignment still resolves to the same department.
+const DEPARTMENTS=["Prime Minister's Office","Attorney-General","Solicitor-General","Minister of Defence",
+  "Minister of Finance","Secretary of State for Home Affairs","Minister of Home Affairs",
+  "Minister of Foreign Affairs","Minister of Justice","Minister of Health","Minister of Trade","Other"];
+
+function DeptForm({gov,members,onAction,notify,setBusy}){
+  const posts=gov.cabinet||{};
+  return <div>
+    <h2 style={{marginTop:0}}>Departments of state</h2>
+    <p className="hint">Who sits in the Cabinet is conferred under Appointments. Set here the department each
+      Minister administers. The Sovereign may establish, dissolve or reorganise departments by Order in
+      Council on the Prime Minister's advice. <Cite>s29(4)</Cite></p>
+    {members.length===0?<Empty>No one holds an office that can take a department.</Empty>
+      :<table>
+        <caption>Assign departments</caption>
+        <thead><tr><th>Minister</th><th className="num">Department</th></tr></thead>
+        <tbody>{members.map(m=>{
+          const u=String(m.username||"").toLowerCase();
+          return <tr key={m.username}>
+            <td><Person account={m} size={32}/></td>
+            <td className="num" style={{minWidth:260}}>
+              <select value={posts[u]||""} onChange={async e=>{
+                const v=e.target.value;
+                setBusy("Assigning the department");
+                const res=await onAction("department",{username:u,post:v});
+                setBusy(null);
+                notify(res.ok?((m.displayName||m.username)+(v?" — "+v:" — department cleared")):res.error,res.ok);
+              }}>
+                <option value="">Not assigned</option>
+                {DEPARTMENTS.map(d=><option key={d} value={d}>{d}</option>)}
+              </select>
+            </td>
+          </tr>;})}</tbody>
+      </table>}
+  </div>;
+}
+
+/* ── sign in ─────────────────────────────────────────────────────────────── */
+function SignIn({onClose,onAuth}){
+  const [u,setU]=useState("");const [p,setP]=useState("");const [err,setErr]=useState("");const [busy,setBusy]=useState(false);
+  const go=async()=>{
+    if(busy)return;
+    if(!u.trim()||!p){setErr("Enter your username and password.");return;}
+    setBusy(true);setErr("");
+    const res=await slogin(u,p);
+    if(!res.ok){setErr(res.error);setBusy(false);return;}
+    onAuth(res.account);
+  };
+  return <div style={{position:"fixed",inset:0,zIndex:900,background:"rgba(11,12,12,.75)",display:"flex",
+    alignItems:"flex-start",justifyContent:"center",padding:"6vh 15px",overflowY:"auto"}}
+    onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+    <div style={{background:"#fff",maxWidth:460,width:"100%",padding:"26px 26px 30px"}}
+      onKeyDown={e=>{if(e.key==="Enter")go();}}>
+      <h1 style={{fontSize:28,marginBottom:10}}>Sign in to Wilden</h1>
+      <p className="hint">One account works across the networks. The public record is readable without signing in.</p>
+      {err&&<div className="err"><div className="t">There is a problem</div><p style={{marginBottom:0}}>{err}</p></div>}
+      <Field label="Username"><input type="text" value={u} onChange={e=>setU(e.target.value)} autoFocus/></Field>
+      <Field label="Password"><input type="password" value={p} onChange={e=>setP(e.target.value)}/></Field>
+      <div className="btn-row">
+        <Btn onClick={go} disabled={busy}>{busy?"Signing in…":"Sign in"}</Btn>
+        <Btn kind="sec" onClick={onClose}>Cancel</Btn>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ── app ─────────────────────────────────────────────────────────────────── */
+function App(){
+  const [raw,setRaw]=useState({});
+  const [loaded,setLoaded]=useState(false);
+  const [tab,setTab]=useState("home");
+  const [user,setUser]=useState(()=>cachedAccount());
+  const [authOpen,setAuthOpen]=useState(false);
+  const [msg,setMsg]=useState(null);
+  const [busy,setBusy]=useState(null);
+  const notify=useCallback((text,ok)=>{setMsg({text,ok});window.scrollTo({top:0,behavior:"smooth"});
+    setTimeout(()=>setMsg(m=>m&&m.text===text?null:m),6000);},[]);
+
+  useEffect(()=>{sgetAll().then(r=>{setRaw(r);setLoaded(true);});},[]);
+  // clearSession() drops AUTH_TOKEN, so a null account with no token left means the
+  // server rejected it — sign the optimistic user back out. A null with the token
+  // still held is only an unreachable server; leave them signed in.
+  useEffect(()=>{srestore().then(acc=>{if(acc){setUser(acc);sgetAll().then(r=>setRaw(prev=>({...prev,...r})));}else if(!AUTH_TOKEN)setUser(null);});},[]);
+
+  // Accounts are shared and arrive in the snapshot as mi_accounts. Wildenian
+  // office is a field on them, so the register of who holds what is simply a read.
+  const accounts=useMemo(()=>{
+    const out={};
+    Object.values(raw["mi_accounts"]||{}).forEach(a=>{if(a&&a.username)out[String(a.username).toLowerCase()]=a;});
+    return out;
+  },[raw]);
+  const byRole=useCallback(r=>Object.values(accounts).filter(a=>String(a.wxRole||"")===r)
+    .sort((a,b)=>((a.displayName||a.username)||"").localeCompare((b.displayName||b.username)||"")),[accounts]);
+
+  const sovereign=useMemo(()=>byRole("sovereign")[0]||null,[byRole]);
+  const pm=useMemo(()=>byRole("pm")[0]||null,[byRole]);
+  const speaker=useMemo(()=>byRole("speaker")[0]||null,[byRole]);
+  // The Speaker and the Prime Minister are members of the Commons, so they are
+  // counted among the seven — the Speaker simply does not vote with the House.
+  const commons=useMemo(()=>[...byRole("pm"),...byRole("speaker"),...byRole("mp")],[byRole]);
+  const lords=useMemo(()=>byRole("lord"),[byRole]);
+  const appointed=useMemo(()=>byRole("appointed"),[byRole]);
+  const justices=useMemo(()=>[...byRole("chief_justice"),...byRole("justice")],[byRole]);
+
+  const bills=useMemo(()=>raw["wx_bills"]||{},[raw]);
+  const votes=useMemo(()=>raw["wx_votes"]||{},[raw]);
+  const gov=useMemo(()=>raw["wx_gov"]||{},[raw]);
+  // Citizens of Wilden, from the Ministry of Foreign Affairs. Only a citizen may
+  // hold office, so this is what the appointments panel draws from.
+  const citizens=useMemo(()=>{
+    const s=new Set();
+    Object.values(raw["wx_state_citizens"]||{}).forEach(c=>{
+      if(c&&["citizen","naturalised"].includes(String(c.status||""))) s.add(String(c.username||"").toLowerCase());
+    });
+    return s;
+  },[raw]);
+  const posts=gov.cabinet||{};
+  // Anyone who could hold a department: everyone with a seat, plus appointed Ministers.
+  const cabinetish=useMemo(()=>[...commons,...lords,...appointed],[commons,lords,appointed]);
+  const cabinet=useMemo(()=>cabinetish.filter(a=>posts[String(a.username||"").toLowerCase()]),[cabinetish,posts]);
+
+  const me=String(user?.username||"").toLowerCase();
+  // The signed-in person's own records, for the standing panel on the home page.
+  // Read straight from the Ministry of Foreign Affairs' registers; the passport
+  // register the server already filters to what this account may see.
+  const findMine=useCallback(key=>me?Object.values(raw[key]||{}).find(r=>String(r.username||"").toLowerCase()===me):null,[raw,me]);
+  const myCitizen=useMemo(()=>findMine("wx_state_citizens"),[findMine]);
+  const myPassport=useMemo(()=>findMine("wx_state_passports"),[findMine]);
+  // The visa to enter Wilden that this person holds (latest application in
+  // Wilden's own register). Only their own; the card is hidden when none.
+  const myVisa=useMemo(()=>me?Object.values(raw["wx_state_visas"]||{})
+    .filter(v=>String(v.username||"").toLowerCase()===me).sort((a,b)=>(b.submitted||0)-(a.submitted||0))[0]:null,[raw,me]);
+  // Records held on the citizen. These registers are not established yet — the
+  // reads resolve empty and their cards stay hidden until a domestic ministry
+  // (Justice / Home) starts writing them, at which point they light up on their own.
+  const myHonours=useMemo(()=>me?Object.values(raw["wx_honours"]||{}).filter(h=>String(h.username||"").toLowerCase()===me):[],[raw,me]);
+  const myId=useMemo(()=>findMine("wx_state_ids"),[findMine]);
+  const myWarrant=useMemo(()=>me?Object.values(raw["wx_warrants"]||{}).find(w=>String(w.username||"").toLowerCase()===me&&w.status==="active"):null,[raw,me]);
+  const myVessel=useMemo(()=>findMine("wx_vessels"),[findMine]);
+  // The standing sheet is for citizens of Wilden alone.
+  const iAmCitizen=!!myCitizen&&["citizen","naturalised"].includes(String(myCitizen.status||""));
+
+  const onAction=useCallback(async(type,p)=>{
+    const put=async(bill)=>{
+      const res=await saveRecord("wx_bills",bill);
+      if(res.ok) setRaw(r=>({...r,wx_bills:{...(r.wx_bills||{}),[bill.id]:bill}}));
+      return res;
+    };
+    if(type==="introduce"){
+      const id="wxb_"+uid();
+      return await put({id,...p,stage:"draft",round:1,sponsor:me,created:Date.now()});
+    }
+    if(type==="stage"){
+      return await put({...p.bill,stage:p.stage,movedAt:Date.now(),...(p.round?{round:p.round}:{})});
+    }
+    if(type==="putQuestion"){
+      // Where the question goes next is settled by the Constitution, not by choice.
+      const k=kindOf(p.bill.kind);
+      let stage,message;
+      if(!p.carried&&p.house==="lords"){
+        // The Commons has already passed it, so a hostile Lords does not kill the
+        // bill — it blocks it, and s25(3) leaves the Commons the last word.
+        stage="blocked";
+        message="The Lords declined the bill. The Commons may pass it a second time under s25(3).";
+      } else if(!p.carried){
+        stage="failed";
+        message="The question was resolved in the negative.";
+      } else if(p.house==="commons"&&p.bill.stage==="reconsider"){
+        stage="assent"; message="Passed a second time. Under s25(3) it goes for assent notwithstanding the Lords.";
+      } else if(p.house==="commons"&&!k.lords){
+        stage="carried"; message="Carried by the House of Commons.";
+      } else if(p.house==="commons"){
+        stage="lords"; message="Passed the Commons. It now goes to the House of Lords.";
+      } else {
+        stage=k.assent?"assent":"carried";
+        message=k.assent?"Passed the Lords. It awaits the Royal Assent.":"Carried.";
+      }
+      const res=await put({...p.bill,stage,movedAt:Date.now()});
+      return res.ok?{...res,message}:res;
+    }
+    if(type==="assent"){
+      return await put({...p.bill,stage:"act",assentedAt:Date.now(),assentedBy:me});
+    }
+    if(type==="withdraw"){
+      const res=await deleteRecord("wx_bills",p.bill.id);
+      if(res.ok) setRaw(r=>{const n={...(r.wx_bills||{})};delete n[p.bill.id];return {...r,wx_bills:n};});
+      return res;
+    }
+    // Expunge: the administrator's erasure. Divisions on the bill go first, then
+    // the bill, so no vote is left pointing at a bill that no longer exists.
+    if(type==="expunge"){
+      if(!isSysAdminU(user)) return {ok:false,error:"Only a network administrator may expunge a bill."};
+      const billId=p.bill.id;
+      const doomed=Object.values(raw["wx_votes"]||{}).filter(v=>v&&v.billId===billId);
+      for(const v of doomed) await deleteRecord("wx_votes",v.id);
+      const res=await deleteRecord("wx_bills",billId);
+      if(res.ok) setRaw(r=>{
+        const nb={...(r.wx_bills||{})};delete nb[billId];
+        const nv={...(r.wx_votes||{})};doomed.forEach(v=>delete nv[v.id]);
+        return {...r,wx_bills:nb,wx_votes:nv};
+      });
+      return res;
+    }
+    if(type==="vote"){
+      // Keyed to the voter, the bill, the House and the round, so a second passage
+      // under s25(3) is a fresh division rather than the old one carried over.
+      const round=p.bill.round||1;
+      const id=p.bill.id+"__"+p.house+"__"+round+"__"+me;
+      const rec={id,billId:p.bill.id,house:p.house,round,username:me,vote:p.vote,at:Date.now()};
+      const res=await saveRecord("wx_votes",rec);
+      if(res.ok) setRaw(r=>({...r,wx_votes:{...(r.wx_votes||{}),[id]:rec}}));
+      return res;
+    }
+    if(type==="office"){
+      // Office is a field on the shared account, so this is an account write. The
+      // server permits a Wildenian officer to change wxRole and nothing else.
+      const next={...p.account,wxRole:p.office};
+      const res=await saveRecord("accounts",next);
+      if(res.ok) setRaw(r=>({...r,mi_accounts:{...(r.mi_accounts||{}),[next.username]:next}}));
+      return res;
+    }
+    if(type==="department"){
+      const nextPosts={...(gov.cabinet||{})};
+      if(p.post) nextPosts[p.username]=p.post; else delete nextPosts[p.username];
+      const next={...gov,cabinet:nextPosts};
+      const res=await sset("wx_gov",next);
+      if(res.ok) setRaw(r=>({...r,wx_gov:next}));
+      return res;
+    }
+    return {ok:false,error:"Unknown action."};
+  },[gov,me,user,raw]);
+
+  const hasPanel=canIntroduce(user)||canAppoint(user);
+  const TABS=[["home","Home"],["parliament","Parliament"],["government","Government"],["judicature","Judicature"],
+    ...(hasPanel?[["panel","Manage"]]:[])];
+  const office=user?(wxRole(user)?officeOf(wxRole(user)).l:(isOwner(user)?"Service administrator":"Signed in")):"";
+
+  return <>
+    <header className="hdr">
+      <div className="w">
+        <span className="arms">
+          <img src="wildencoa.png" alt=""
+            onError={e=>{e.currentTarget.style.display='none';e.currentTarget.nextElementSibling.style.display='block';}}/>
+          <span className="fb" aria-hidden="true">&#9672;</span>
+        </span>
+        <a className="brand" href="index.html">Wilden</a>
+        <span className="spacer"/>
+        {user
+          ?<><span className="who"><b>{user.displayName||user.username}</b>{office}</span>
+             <button className="signout" onClick={()=>{forgetSession();setUser(null);if(tab==="panel")setTab("home");notify("You have been signed out.",true);}}>Sign out</button></>
+          :<button className="signin" onClick={()=>setAuthOpen(true)}>Sign in</button>}
+      </div>
+    </header>
+
+    <nav className="nav">
+      <div className="w">
+        {TABS.map(([v,l])=>(
+          <button key={v} aria-current={tab===v?"page":undefined} onClick={()=>setTab(v)}>{l}</button>
+        ))}
+      </div>
+    </nav>
+
+    <div className="phase">
+      <div className="w">
+        <Tag t="blue">Constitution 2024</Tag>
+        <p>The official record of the Government of Wilden. <a href="index.html">Other national networks</a>.</p>
+      </div>
+    </div>
+
+    <main>
+      <div className="w">
+        {msg&&<div className={"notif"+(msg.ok?" ok":"")}>
+          <div className="head">{msg.ok?"Success":"There is a problem"}</div>
+          <div className="body"><p style={{marginBottom:0}}>{msg.text}</p></div></div>}
+        {busy&&<div className="confirm" style={{background:"var(--blue)"}}>
+          <div className="t">{busy}…</div></div>}
+
+        {!loaded&&<p className="lede">Loading the record…</p>}
+        {loaded&&tab==="home"&&<HomeTab sovereign={sovereign} pm={pm} speaker={speaker} commons={commons}
+          lords={lords} justices={justices} bills={bills} onGo={setTab}
+          me={user&&iAmCitizen?{user,office:isOwner(user)?"Service administrator":officeOf(wxRole(user)).l,citizen:myCitizen,passport:myPassport,visa:myVisa,honours:myHonours,idCard:myId,warrant:myWarrant,vessel:myVessel}:null}/>}
+        {loaded&&tab==="parliament"&&<ParliamentTab commons={commons} lords={lords} speaker={speaker}
+          bills={bills} votes={votes} user={user} accounts={accounts} onAction={onAction}
+          notify={notify} setBusy={setBusy}/>}
+        {loaded&&tab==="government"&&<GovernmentTab pm={pm} cabinet={cabinet} appointed={appointed}
+          gov={gov} lords={lords} commons={commons}/>}
+        {loaded&&tab==="judicature"&&<JudicatureTab justices={justices}/>}
+        {loaded&&tab==="panel"&&hasPanel&&<PanelTab user={user} bills={bills} gov={gov} accounts={accounts}
+          citizens={citizens} cabinetish={cabinetish} onAction={onAction} notify={notify} setBusy={setBusy}/>}
+      </div>
+    </main>
+
+    <footer className="ftr">
+      <div className="w">
+        <div className="lic">
+          Published by the Government of Wilden under the Constitution of Wilden.
+          {" "}<a href="index.html">Vintranet</a> · <a href="lech.html">Empire of Lech</a> · <a href="vindex.html">Vindex Nation</a>
+        </div>
+        <div className="powered">
+          <span className="by">Powered by</span>
+          <img src="vindex/saudkruger.png" alt="Saud Kruger Information Systems" draggable="false"
+            onError={e=>{e.currentTarget.style.display='none';e.currentTarget.nextElementSibling.style.display='block';}}/>
+          <span className="fb">Saud Kruger Information Systems</span>
+        </div>
+      </div>
+    </footer>
+
+    {authOpen&&<SignIn onClose={()=>setAuthOpen(false)}
+      onAuth={acc=>{setUser(acc);setAuthOpen(false);sgetAll().then(r=>setRaw(prev=>({...prev,...r})));
+        notify("You are signed in as "+(acc.displayName||acc.username)+".",true);}}/>}
+  </>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
