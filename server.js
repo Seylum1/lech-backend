@@ -92,7 +92,14 @@ async function actorFromReq(req) {
   if (!token) return null;
   const s = await db.collection("sessions").findOne({ _id: token });
   if (!s || !s.exp || s.exp < Date.now()) { if (s) await db.collection("sessions").deleteOne({ _id: token }); return null; }
-  return await db.collection("accounts").findOne({ _id: s.username });
+  const acc = await db.collection("accounts").findOne({ _id: s.username });
+  // A banned account is locked out at once: its session is destroyed the moment
+  // it is used again, so a ban takes effect without waiting for a sign-out.
+  if (acc && acc.banned) {
+    await db.collection("sessions").deleteMany({ username: acc._id });
+    return null;
+  }
+  return acc;
 }
 
 // Brute-force throttle: too many wrong guesses from one IP+username locks that
@@ -128,6 +135,14 @@ app.post("/api/login", async (req, res) => {
     if (!ok) {
       noteFail(k);
       return res.status(401).json({ ok: false, error: "ACCESS DENIED" });
+    }
+    // A banned account cannot sign in at all, however correct the password —
+    // and any session it still holds is destroyed here.
+    if (acc.banned) {
+      await db.collection("sessions").deleteMany({ username: acc._id });
+      return res.status(403).json({ ok: false, error: acc.banReason
+        ? "This account is suspended: " + String(acc.banReason)
+        : "This account has been suspended by a network administrator." });
     }
     LOGIN_FAILS.delete(k);
     const token = crypto.randomUUID();
@@ -529,9 +544,51 @@ async function isDojMember(username) {
   return false;
 }
 
+// The Department of Defense of the Republic of Vindex Nation. Command authority
+// comes either from a Vinish office conferred on the Vindex portal (the
+// President, the Vice President, and the Secretary of Defense in Cabinet) or
+// from an appointment made inside the Department itself — the same
+// "authority proven against a live register" pattern as the Department of Justice.
+const DOD_KEYS = new Set(["vx_dod", "vx_dod_personnel", "vx_dod_commands", "vx_dod_assets", "vx_dod_operations"]);
+async function isDodMember(username) {
+  const u = String(username || "").toLowerCase();
+  if (!u) return false;
+  // Secretary of Defense, seated as a Cabinet post on the Vindex portal.
+  const gdoc = await db.collection("singletons").findOne({ _id: "vx_gov" });
+  const cab = (gdoc && gdoc.value && gdoc.value.cabinet) || {};
+  for (const holder in cab) {
+    if (String(cab[holder] || "").trim().toLowerCase() === "secretary of defense"
+        && String(holder).toLowerCase() === u) return true;
+  }
+  // Appointments made within the Department: its principals and its roster.
+  const doc = await db.collection("singletons").findOne({ _id: "vx_dod" });
+  const dod = (doc && doc.value) || {};
+  const principals = dod.principals || {};
+  for (const post in principals) {
+    if (String(principals[post] || "").toLowerCase() === u) return true;
+  }
+  const pdoc = await db.collection("singletons").findOne({ _id: "vx_dod_personnel" });
+  const roster = (pdoc && pdoc.value) || {};
+  for (const id in roster) {
+    const p = roster[id] || {};
+    if (String(p.username || "").toLowerCase() === u && String(p.status || "active") === "active") return true;
+  }
+  return false;
+}
+
 async function authorizeKeyWrite(actor, key) {
   if (!actor) return "Not authenticated";
-  if (actor.role === "emperor") return null;
+  // The network administrator runs the estate — the owner, and anyone the owner
+  // has granted sysAdmin. Both are trusted with every register here, the same way
+  // both already hold account possession and moderation powers.
+  if (isSysAdmin(actor)) return null;
+  // Defence keys: a Vindex officer (the President, Vice President and Cabinet
+  // direct the Department) or anyone holding an appointment inside it.
+  if (DOD_KEYS.has(key)) {
+    if (hasVindex(actor)) return null;
+    if (await isDodMember(actor.username)) return null;
+    return "Requires an appointment in the Department of Defense";
+  }
   // Justice keys: a Vindex officer (the President or Cabinet appoint and oversee
   // it) or any member of the Department itself. The page enforces who may do what.
   if (DOJ_KEYS.has(key)) {
@@ -673,6 +730,10 @@ function fieldAuth(actor, field, prev, next) {
     return isSysAdmin(actor) ? null : "Only a network administrator may change account identity";
   if (field === "sysAdmin")
     return actor.role === "emperor" ? null : "Only the owner may grant or revoke administrator rights";
+  // Suspension is a network-administration act, not a national one. An
+  // administrator may not ban the owner, nor themselves.
+  if (field === "banned" || field === "banReason" || field === "bannedAt" || field === "bannedBy")
+    return isSysAdmin(actor) ? null : "Only a network administrator may suspend an account";
   if (ACCT_LECH.has(field)) {
     if (field === "role") {
       if (roleRank(next) === 2 || roleRank(prev) === 2)
@@ -710,6 +771,12 @@ async function authorizeAccountWrite(actor, incoming) {
   // hash is a meta field the loop skips — an account-takeover hole.
   if (incoming.passwordHash !== undefined && !isSysAdmin(actor))
     return "Only a network administrator may set an account's password";
+  // A suspension has two people it can never reach: the owner, who answers to no
+  // administrator, and the actor themselves — nobody locks themselves out.
+  if (!!incoming.banned !== !!existing.banned) {
+    if (existing.role === "emperor") return "The owner's account cannot be suspended";
+    if (String(existing._id) === String(actor._id)) return "You cannot suspend your own account";
+  }
   // An existing account: every field that actually changed must be one the actor
   // is entitled to change. Meta fields are handled elsewhere and never counted.
   const keys = new Set([...Object.keys(existing), ...Object.keys(incoming)]);
@@ -865,6 +932,11 @@ async function writeRule(collection, actor, record) {
 async function deleteRule(collection, actor) {
   if (!actor) return "Not authenticated";
   if (collection === "secrets") return "Forbidden";
+  // The network administrator may expunge a measure outright — record, votes and
+  // all — leaving no trace. This is deliberately outside every national office:
+  // it is a moderation power over the estate, not an act of any government.
+  if (isSysAdmin(actor) &&
+      ["vx_bills", "vx_orders", "vx_votes", "wx_bills", "wx_votes"].includes(collection)) return null;
   // Striking a measure or an order from the record is an act of office.
   if (collection === "vx_bills" || collection === "vx_orders")
     return vxPresides(actor) ? null : "Only the Speaker or the President may strike this from the record";
@@ -899,6 +971,9 @@ app.post("/api/write", async (req, res) => {
     const doc = { ...record, _id: id, _writtenBy: actor.username, _writtenAt: Date.now() };
     if (collection === "accounts") { doc.username = String(record.username || id).toLowerCase(); await applyAccountSecret(doc); }
     await db.collection(collection).replaceOne({ _id: id }, doc, { upsert: true });
+    // A suspension takes hold immediately: every session this account holds is
+    // destroyed the moment the ban is written, signing them out everywhere.
+    if (collection === "accounts" && doc.banned) await db.collection("sessions").deleteMany({ username: id });
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
