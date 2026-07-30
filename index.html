@@ -1,4 +1,9 @@
-<!DOCTYPE html>
+if(!chan&&bk.chancellor&&low(bk.chancellor)!=="vacant"){
+        // The officials register may hold a bare username or a display name.
+        var cn=low(bk.chancellor);
+        if(accs[cn]){chan=cn;}
+        else{var c=list.filter(function(a){return low(a.displayName||"")===cn;})[0];chan=c?c.username:null;}
+      }<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -55,6 +60,33 @@ body{
 .lede{text-align:center;max-width:440px;margin:2.3rem auto 2.5rem;
   font-size:1.06rem;font-style:italic;font-weight:300;color:var(--ink2);line-height:1.75;}
 
+/* ── the war notice ──────────────────────────────────────────────────────────
+   The one notice that outranks the nations below it: the network is carrying a
+   war. Set in the red of a wartime proclamation — nothing else on this page is
+   red, so nothing else competes — and ruled top and bottom like a bulletin
+   pasted onto the sheet. It leads to the shared War Room. */
+.wardesk{--war:#8e1f1f;
+  display:flex;align-items:center;gap:1.15rem;
+  margin:0 0 2.3rem;padding:1.05rem 1.6rem;
+  border-top:3px double var(--war);border-bottom:3px double var(--war);
+  background:linear-gradient(180deg, rgba(142,31,31,.055), rgba(142,31,31,.105));
+  text-decoration:none;transition:background .18s;}
+.wardesk:hover{background:rgba(142,31,31,.17);}
+.wd-glyph{font-size:1.75rem;line-height:1;color:var(--war);flex-shrink:0;}
+.wd-text{display:flex;flex-direction:column;gap:.32rem;min-width:0;}
+.wd-head{font-size:.92rem;font-weight:700;letter-spacing:.3em;text-transform:uppercase;
+  color:var(--war);line-height:1.2;}
+.wd-sub{font-size:.88rem;font-weight:300;font-style:italic;color:var(--ink2);line-height:1.5;}
+.wd-enter{margin-left:auto;flex-shrink:0;white-space:nowrap;
+  font-size:.66rem;font-weight:600;letter-spacing:.26em;text-transform:uppercase;
+  color:var(--war);border-top:1px solid var(--war);border-bottom:1px solid var(--war);
+  padding:7px 18px;text-indent:.26em;transition:background .18s,color .18s;}
+.wardesk:hover .wd-enter{background:var(--war);color:var(--paper);}
+@media(max-width:640px){
+  .wardesk{flex-direction:column;text-align:center;gap:.8rem;padding:1rem 1.1rem;}
+  .wd-enter{margin-left:0;}
+}
+
 /* ── the three nations ───────────────────────────────────────────────────── */
 .nations{display:grid;grid-template-columns:repeat(3,1fr);
   border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);}
@@ -91,6 +123,43 @@ a.nation:hover .enter{background:var(--seal);color:var(--paper);}
 .nation.soon .arms{opacity:.62;}
 .nation.soon .name{color:var(--ink2);}
 .nation.soon .divider{background:var(--rule);}
+
+/* ── the heads of state & government ─────────────────────────────────────────
+   The concert of nations, closing the sheet: each column under a rule tinted in
+   its nation's colour, the head of state in a ringed medallion, the head of
+   government beneath. Filled live from the shared register; hidden if the
+   register cannot be reached. */
+.leaders{margin:2.6rem 0 0;}
+.ld-head{text-align:center;font-size:.58rem;font-weight:600;letter-spacing:.34em;text-transform:uppercase;
+  color:var(--ink3);margin-bottom:1.15rem;text-indent:.34em;}
+.ld-grid{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--rule);}
+.ld-col{padding:1.35rem 1rem 1.25rem;text-align:center;border-right:1px solid var(--rule);border-top:3px solid var(--rule);}
+.ld-col:last-child{border-right:0;}
+.ld-col.lech{border-top-color:#a84d4d;}
+.ld-col.vindex{border-top-color:#5f8f1c;}
+.ld-col.wilden{border-top-color:#7a1c1c;}
+.ld-nation{font-size:.6rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;margin-bottom:1rem;}
+.ld-col.lech .ld-nation{color:#a84d4d;}
+.ld-col.vindex .ld-nation{color:#5f8f1c;}
+.ld-col.wilden .ld-nation{color:#7a1c1c;}
+.ld-med{width:56px;height:56px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(circle at 50% 38%, #fffdf8, var(--paperD));overflow:hidden;
+  box-shadow:0 0 0 1px var(--ruleD), 0 0 0 4px var(--paper), 0 0 0 5px var(--rule);}
+.ld-med img{width:36px;height:36px;image-rendering:pixelated;display:block;}
+.ld-role{font-size:.52rem;font-weight:600;letter-spacing:.26em;text-transform:uppercase;color:var(--ink3);margin-top:.7rem;}
+.ld-name{font-size:1.02rem;font-weight:600;line-height:1.2;margin-top:.15rem;}
+.ld-name.vacant{color:var(--ink3);font-style:italic;font-weight:400;}
+.ld-div{width:26px;height:1px;background:var(--rule);margin:.85rem auto;}
+.ld-sec{display:flex;align-items:center;justify-content:center;gap:.55rem;}
+.ld-sec img{width:22px;height:22px;image-rendering:pixelated;border:1px solid var(--rule);display:block;}
+.ld-sec-t{text-align:left;}
+.ld-sec-r{font-size:.48rem;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--ink3);display:block;}
+.ld-sec-n{font-size:.84rem;font-weight:600;line-height:1.15;}
+.ld-sec-n.vacant{color:var(--ink3);font-style:italic;font-weight:400;}
+@media(max-width:760px){
+  .ld-grid{grid-template-columns:1fr;}
+  .ld-col{border-right:0;}
+}
 
 /* ── colophon ────────────────────────────────────────────────────────────── */
 .colophon{text-align:center;max-width:520px;margin:2.6rem auto 3rem;}
@@ -130,6 +199,15 @@ a.nation:hover .enter{background:var(--seal);color:var(--paper);}
 
   <p class="lede">The way in to three national networks. Select a government below to enter its own.</p>
 
+  <a class="wardesk" href="war.html" aria-label="Enter the War Room — the war between the Empire of Lech and the Republic of Vindex Nation">
+    <span class="wd-glyph" aria-hidden="true">⚔</span>
+    <span class="wd-text">
+      <span class="wd-head">State of War</span>
+      <span class="wd-sub">The Empire of Lech and the Republic of Vindex Nation are at war. Follow the front lines and the record of battle.</span>
+    </span>
+    <span class="wd-enter">War Room</span>
+  </a>
+
   <section class="nations">
 
     <a class="nation" href="lech.html" aria-label="Enter the network of the Empire of Lech">
@@ -166,6 +244,71 @@ a.nation:hover .enter{background:var(--seal);color:var(--paper);}
     </a>
 
   </section>
+
+  <section class="leaders" id="ldLeaders" hidden aria-label="The heads of state and government of the three nations">
+    <div class="ld-head">The Heads of State &amp; Government</div>
+    <div class="ld-grid"></div>
+  </section>
+  <script>
+  /* The concert of nations, read live from the shared register. The Emperor is
+     recognised by his role; the Chancellor from the Bundeskongress' officials;
+     the rest by the office each nation's own portal conferred. A face follows
+     the estate's rule: custom picture, then the Minecraft override, then the
+     bare account. If the register is unreachable the section simply stays off
+     the sheet. */
+  (function(){
+    var API="https://lech-backend.onrender.com";
+    var low=function(s){return String(s||"").toLowerCase();};
+    var esc=function(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");};
+    function face(accs,pfps,u){
+      u=low(u); var p=pfps[u]; if(p&&p.img)return p.img;
+      var a=accs[u]; var n=(a&&(a.mcName||a.username))||u;
+      return "https://mc-heads.net/avatar/"+encodeURIComponent(n)+"/64";
+    }
+    function nm(accs,u){var a=accs[low(u)];return a?(a.displayName||a.username):null;}
+    fetch(API+"/api/data").then(function(r){return r.json();}).then(function(d){
+      if(!d||!d.ok)return;
+      var raw=d.data||{}, accs=raw.mi_accounts||{}, pfps=raw.mi_pfp||{}, bk=raw.bk_officials||{};
+      var list=Object.keys(accs).map(function(k){return accs[k];});
+      var find=function(f){var a=list.filter(f)[0];return a?a.username:null;};
+      var emperor=find(function(a){return a.role==="emperor";});
+      var chan=bk.chancellor_username?low(bk.chancellor_username):null;
+      if(!chan&&bk.chancellor&&low(bk.chancellor)!=="vacant"){
+        var c=list.filter(function(a){return low(a.displayName||"")===low(bk.chancellor);})[0];
+        chan=c?c.username:null;
+      }
+      var cols=[
+        {cls:"lech",  nation:"Empire of Lech",           hsRole:"Emperor",  hs:emperor,
+         hgRole:"Chancellor",     hg:chan, hgRaw:bk.chancellor},
+        {cls:"vindex",nation:"Republic of Vindex Nation",hsRole:"President",hs:find(function(a){return String(a.vxRole||"")==="president";}),
+         hgRole:"Vice President", hg:find(function(a){return String(a.vxRole||"")==="vice_president";})},
+        {cls:"wilden",nation:"Wilden",                   hsRole:"King",     hs:find(function(a){return String(a.wxRole||"")==="sovereign";}),
+         hgRole:"Prime Minister", hg:find(function(a){return String(a.wxRole||"")==="pm";})},
+      ];
+      var h="";
+      cols.forEach(function(c){
+        var hsN=c.hs?nm(accs,c.hs):null;
+        // An office may be held by a name with no account on the network yet —
+        // the register still names them, so the sheet does too.
+        var hgN=c.hg?nm(accs,c.hg):(c.hgRaw&&low(c.hgRaw)!=="vacant"?String(c.hgRaw):null);
+        h+='<div class="ld-col '+c.cls+'">'
+          +'<div class="ld-nation">'+esc(c.nation)+'</div>'
+          +'<div class="ld-med">'+(c.hs?'<img src="'+esc(face(accs,pfps,c.hs))+'" alt="" onerror="this.style.display=\'none\'"/>':"")+'</div>'
+          +'<div class="ld-role">'+esc(c.hsRole)+'</div>'
+          +'<div class="ld-name'+(hsN?"":" vacant")+'">'+esc(hsN||"Vacant")+'</div>'
+          +'<div class="ld-div"></div>'
+          +'<div class="ld-sec">'
+            +(c.hg?'<img src="'+esc(face(accs,pfps,c.hg))+'" alt="" onerror="this.style.display=\'none\'"/>':"")
+            +'<span class="ld-sec-t"><span class="ld-sec-r">'+esc(c.hgRole)+'</span>'
+            +'<span class="ld-sec-n'+(hgN?"":" vacant")+'">'+esc(hgN||"Vacant")+'</span></span>'
+          +'</div>'
+        +'</div>';
+      });
+      var el=document.getElementById("ldLeaders");
+      if(el){el.querySelector(".ld-grid").innerHTML=h;el.hidden=false;}
+    }).catch(function(){});
+  })();
+  </script>
 
   <section class="colophon">
     <div class="head">One sign-in</div>
@@ -209,8 +352,11 @@ async function srestore(){let t=null;try{t=localStorage.getItem(SESSION_KEY);}ca
 async function sgetAll(){try{const r=await fetch(API+"/api/data"+(AUTH_TOKEN?"?token="+encodeURIComponent(AUTH_TOKEN):""));const d=await r.json();return (d&&d.ok)?(d.data||{}):{};}catch{return{};}}
 async function saveRecord(collection,record){try{const r=await fetch(API+"/api/write",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:AUTH_TOKEN,collection,record})});const d=await r.json();return d&&d.ok?{ok:true}:{ok:false,error:(d&&d.error)||"Refused."};}catch{return {ok:false,error:"Connection error."};}}
 async function deleteRecord(collection,id){try{const r=await fetch(API+"/api/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:AUTH_TOKEN,collection,id})});const d=await r.json();return d&&d.ok?{ok:true}:{ok:false,error:(d&&d.error)||"Refused."};}catch{return {ok:false,error:"Connection error."};}}
+async function sset(key,value){try{const r=await fetch(API+"/api/set",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:AUTH_TOKEN,key,value})});const d=await r.json();return d&&d.ok?{ok:true}:{ok:false,error:(d&&d.error)||"Refused."};}catch{return {ok:false,error:"Connection error."};}}
 async function slogin(username,password){try{const r=await fetch(API+"/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:String(username||"").trim(),password})});const d=await r.json();if(d&&d.ok){AUTH_TOKEN=d.token;saveSession(d.token,d.account);return {ok:true,account:d.account};}return {ok:false,error:(d&&d.error)||"Sign in was refused"};}catch(e){return {ok:false,error:"Connection error"};}}
-async function registerAccount(username,passwordHash,firstName,lastName){try{const r=await fetch(API+"/api/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,passwordHash,firstName,lastName})});const d=await r.json();if(d&&d.ok){AUTH_TOKEN=d.token;saveSession(d.token,d.account);return {ok:true,account:d.account};}return {ok:false,error:(d&&d.error)||"Registration was refused"};}catch(e){return {ok:false,error:"Connection error"};}}
+// A registration no longer signs you in: the account is created awaiting review,
+// and the server returns no session at all until it is approved.
+async function registerAccount(username,passwordHash,firstName,lastName){try{const r=await fetch(API+"/api/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,passwordHash,firstName,lastName})});const d=await r.json();if(d&&d.ok)return {ok:true,pending:true,message:d.message||""};return {ok:false,closed:!!(d&&d.closed),error:(d&&d.error)||"Registration was refused"};}catch(e){return {ok:false,error:"Connection error"};}}
 async function setRoleplayName(firstName,lastName){try{const r=await fetch(API+"/api/set-name",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:AUTH_TOKEN,firstName,lastName})});const d=await r.json();if(d&&d.ok){saveSession(AUTH_TOKEN,d.account);return {ok:true,account:d.account};}return {ok:false,error:(d&&d.error)||"Refused."};}catch{return {ok:false,error:"Connection error."};}}
 // An account still needs a roleplay name if it predates the first/last-name
 // rule: no display name, one that restates the username, or a single word.
@@ -226,6 +372,17 @@ function mcFaceUrl(n){return "https://mc-heads.net/avatar/"+encodeURIComponent(n
 // administrator is the owner or anyone the owner has granted sysAdmin.
 const isOwner=u=>!!u&&u.role==="emperor";
 const isAdmin=u=>!!u&&(u.role==="emperor"||u.sysAdmin===true);
+// A system moderator polices the network without running it: they admit accounts
+// awaiting review and suspend accounts that misbehave, and nothing else. Every
+// administrator is also a moderator.
+const isMod=u=>isAdmin(u)||(!!u&&u.sysMod===true);
+const isPending=a=>!!a&&a.approved===false;
+// Whether the network is taking new people, read without signing in.
+async function registrationState(){
+  try{const r=await fetch(API+"/api/registration");const d=await r.json();
+    return (d&&d.ok)?{open:d.open!==false,reason:d.reason||""}:{open:true,reason:""};}
+  catch(e){return {open:true,reason:""};}
+}
 
 /* ── a player's standing across the three nations (read-only here) ────────── */
 const LECH_ROLE_LABEL={citizen:"Citizen",minister:"Interior Minister",emperor:"Emperor"};
@@ -308,7 +465,7 @@ function Chip({user,onSignIn,onRegister,onDirectory,onProfile,onAdmin,onSignOut}
       style={{width:22,height:22,imageRendering:"pixelated",border:`1px solid ${RULED}`,verticalAlign:"middle"}}
       onError={e=>{e.currentTarget.style.display="none";}}/>
     <button style={{...link,color:INK2,textDecorationColor:"transparent"}} onClick={onProfile}>{user.displayName||user.username}</button>
-    {isAdmin(user)&&<>{dot}<button style={link} onClick={onAdmin}>Administration</button></>}
+    {isMod(user)&&<>{dot}<button style={link} onClick={onAdmin}>Administration</button></>}
     {dot}<button style={link} onClick={onSignOut}>Sign out</button>
   </div>;
 }
@@ -357,6 +514,10 @@ function SignIn({onClose,onDone,switchRegister}){
 function Register({onClose,onDone,switchSignIn}){
   const [u,setU]=useState(""),[fn,setFn]=useState(""),[ln,setLn]=useState(""),[p,setP]=useState(""),[p2,setP2]=useState("");
   const [err,setErr]=useState(""),[busy,setBusy]=useState(false);
+  const [done,setDone]=useState(false);
+  // Whether the network is taking new people at all, and why not if it isn't.
+  const [reg,setReg]=useState(null);
+  useEffect(()=>{registrationState().then(setReg);},[]);
   const go=async()=>{if(busy)return;
     if(!u.trim()){setErr("Enter your Minecraft username.");return;}
     if(!fn.trim()||!ln.trim()){setErr("Enter your roleplay character's first and last name.");return;}
@@ -365,24 +526,47 @@ function Register({onClose,onDone,switchSignIn}){
     setBusy(true);setErr("");
     const hash=await sha256(p);
     const r=await registerAccount(u.trim(),hash,fn.trim(),ln.trim());
-    if(!r.ok){setErr(r.error);setBusy(false);return;}onDone(r.account);};
+    setBusy(false);
+    if(!r.ok){setErr(r.error);return;}
+    // A registration is a request to join, not a joining: no session comes back.
+    setDone(true);};
+
+  if(done)return <Overlay onClose={onClose}><ModalHead title="Account created" onClose={onClose}/>
+    <div style={{padding:"18px 24px 24px"}}>
+      <div style={{...serif,fontSize:16,color:INK,marginBottom:10}}>Your account is under review.</div>
+      <Note>An administrator will look over your registration shortly. You'll be able to sign in once it
+        has been approved — try again a little later.</Note>
+      <Btn kind="seal" onClick={onClose}>Close</Btn>
+    </div>
+  </Overlay>;
+
+  const closed=reg&&reg.open===false;
   return <Overlay onClose={onClose}><ModalHead title="Register" onClose={onClose}/>
-    <div style={{padding:"18px 24px 24px"}} onKeyDown={e=>{if(e.key==="Enter")go();}}>
-      <Note>Your username must be a real Minecraft account — it is checked against Mojang. Your roleplay
-        name is who you are on the network; it appears on every register and document. A new
-        account belongs to no nation; each country grants its own citizenship afterward.</Note>
-      {err&&<Note err>{err}</Note>}
-      <Field label="Minecraft username"><Inp value={u} onChange={e=>setU(e.target.value)} autoFocus placeholder="Your exact Minecraft name"/></Field>
-      <div style={{display:"flex",gap:12}}>
-        <div style={{flex:1}}><Field label="First name"><Inp value={fn} onChange={e=>setFn(e.target.value)}/></Field></div>
-        <div style={{flex:1}}><Field label="Last name"><Inp value={ln} onChange={e=>setLn(e.target.value)}/></Field></div>
-      </div>
-      <Field label="Password"><Inp type="password" value={p} onChange={e=>setP(e.target.value)}/></Field>
-      <Field label="Confirm password"><Inp type="password" value={p2} onChange={e=>setP2(e.target.value)}/></Field>
-      <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-        <Btn kind="seal" onClick={go} disabled={busy}>{busy?"Creating…":"Create account"}</Btn>
-        <Btn kind="ghost" onClick={switchSignIn}>I already have one</Btn>
-      </div>
+    <div style={{padding:"18px 24px 24px"}} onKeyDown={e=>{if(e.key==="Enter"&&!closed)go();}}>
+      {closed
+        ?<>
+          <div style={{...serif,fontSize:16,color:INK,marginBottom:10}}>Registration is closed.</div>
+          <Note err>{reg.reason||"The network is not accepting new accounts at the moment."}</Note>
+          <Btn kind="ghost" onClick={switchSignIn}>I already have an account</Btn>
+        </>
+        :<>
+          <Note>Your username must be a real Minecraft account — it is checked against Mojang. Your roleplay
+            name is who you are on the network; it appears on every register and document. A new
+            account belongs to no nation; each country grants its own citizenship afterward.
+            Registrations are reviewed before they may sign in.</Note>
+          {err&&<Note err>{err}</Note>}
+          <Field label="Minecraft username"><Inp value={u} onChange={e=>setU(e.target.value)} autoFocus placeholder="Your exact Minecraft name"/></Field>
+          <div style={{display:"flex",gap:12}}>
+            <div style={{flex:1}}><Field label="First name"><Inp value={fn} onChange={e=>setFn(e.target.value)}/></Field></div>
+            <div style={{flex:1}}><Field label="Last name"><Inp value={ln} onChange={e=>setLn(e.target.value)}/></Field></div>
+          </div>
+          <Field label="Password"><Inp type="password" value={p} onChange={e=>setP(e.target.value)}/></Field>
+          <Field label="Confirm password"><Inp type="password" value={p2} onChange={e=>setP2(e.target.value)}/></Field>
+          <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+            <Btn kind="seal" onClick={go} disabled={busy}>{busy?"Creating…":"Create account"}</Btn>
+            <Btn kind="ghost" onClick={switchSignIn}>I already have one</Btn>
+          </div>
+        </>}
     </div>
   </Overlay>;
 }
@@ -397,7 +581,12 @@ function Admin({user,raw,reload,onProfile,onClose,notify}){
       .sort((a,b)=>((a.displayName||a.username)||"").localeCompare((b.displayName||b.username)||""));
   },[raw]);
   const query=q.trim().toLowerCase();
-  const list=accounts.filter(a=>!query||((a.displayName||"")+" "+(a.username||"")).toLowerCase().includes(query));
+  // Registrations awaiting review come first and separately — they are a queue of
+  // work, not part of the roster until they are admitted.
+  const pending=accounts.filter(isPending).sort((a,b)=>(a.registeredAt||0)-(b.registeredAt||0));
+  const admitted=accounts.filter(a=>!isPending(a));
+  const list=admitted.filter(a=>!query||((a.displayName||"")+" "+(a.username||"")).toLowerCase().includes(query));
+  const admin=isAdmin(user);
   return <Overlay onClose={onClose} wide>
     <ModalHead title="Administration · Accounts" onClose={onClose}/>
     <div style={{padding:"18px 24px 26px"}}>
@@ -405,10 +594,25 @@ function Admin({user,raw,reload,onProfile,onClose,notify}){
         permissions — a Lech clearance, a Vinish office, a Wildenian seat — are still set on that
         nation's service; below they are shown, not edited.</Note>
 
-      <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginBottom:16}}>
+      {admin&&<RegistrationControl raw={raw} notify={notify} reload={reload}/>}
+
+      {/* the queue */}
+      <div style={{borderTop:`1px solid ${RULE}`,paddingTop:16,marginTop:16}}>
+        <div style={{...serif,fontSize:13,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",
+          color:pending.length?SEAL:INK3,marginBottom:8}}>
+          Awaiting review{pending.length?" · "+pending.length:""}
+        </div>
+        {!raw
+          ?<div style={{...serif,color:INK3,fontStyle:"italic"}}>Loading…</div>
+          :pending.length===0
+          ?<div style={{...serif,color:INK3,fontStyle:"italic",fontSize:14}}>No registrations are waiting.</div>
+          :<div>{pending.map(a=><PendingRow key={a.username} acc={a} user={user} notify={notify} reload={reload}/>)}</div>}
+      </div>
+
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",margin:"22px 0 16px"}}>
         <Inp value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name or username" style={{maxWidth:320}}/>
         <span style={{flex:1}}/>
-        {!creating&&<Btn kind="seal" onClick={()=>setCreating(true)}>+ Create account</Btn>}
+        {admin&&!creating&&<Btn kind="seal" onClick={()=>setCreating(true)}>+ Create account</Btn>}
       </div>
 
       {creating&&<CreateForm onClose={()=>setCreating(false)} notify={notify} onDone={()=>{setCreating(false);reload();}}/>}
@@ -418,6 +622,78 @@ function Admin({user,raw,reload,onProfile,onClose,notify}){
       <div>{list.map(a=><Row key={a.username} acc={a} raw={raw} user={user} notify={notify} reload={reload} onProfile={onProfile}/>)}</div>
     </div>
   </Overlay>;
+}
+
+/* ── opening and closing registration ────────────────────────────────────────
+   Closing it turns the register screen into a notice. The reason is shown to
+   whoever is turned away, so it should read as an explanation, not a code. */
+function RegistrationControl({raw,notify,reload}){
+  const cur=(raw&&raw.vt_registration)||{};
+  const [closed,setClosed]=useState(!!cur.closed);
+  const [reason,setReason]=useState(cur.reason||"");
+  const [busy,setBusy]=useState(false);
+  useEffect(()=>{setClosed(!!cur.closed);setReason(cur.reason||"");},[cur.closed,cur.reason]);
+  const save=async(nextClosed)=>{
+    setBusy(true);
+    const res=await sset("vt_registration",{closed:nextClosed,reason:reason.trim(),at:Date.now()});
+    setBusy(false);
+    if(res.ok){notify(nextClosed?"Registration closed.":"Registration re-opened.",true);setClosed(nextClosed);reload();}
+    else notify(res.error,false);
+  };
+  return <div style={{border:`1px solid ${closed?SEAL:RULE}`,background:closed?"#fdf6f4":"#fffdf8",
+    padding:"14px 16px",marginTop:16}}>
+    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:8}}>
+      <span style={{...serif,fontSize:13,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:INK}}>Registration</span>
+      {closed?<Tag color={SEAL}>CLOSED</Tag>:<Tag color="#2f6d3f">OPEN</Tag>}
+    </div>
+    <Field label="Reason shown to anyone turned away"
+      hint="Displayed on the register screen while registration is closed.">
+      <Inp value={reason} onChange={e=>setReason(e.target.value)}
+        placeholder="e.g. Closed while we deal with a wave of alt accounts."/>
+    </Field>
+    <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+      {closed
+        ?<>
+          <Btn kind="seal" disabled={busy} onClick={()=>save(false)}>Re-open registration</Btn>
+          <Btn kind="ghost" disabled={busy} onClick={()=>save(true)}>Update reason</Btn>
+        </>
+        :<Btn kind="danger" disabled={busy} onClick={()=>save(true)}>Close registration</Btn>}
+    </div>
+  </div>;
+}
+
+/* ── a registration awaiting review ──────────────────────────────────────── */
+function PendingRow({acc,user,notify,reload}){
+  const [busy,setBusy]=useState(false);
+  const [armed,setArmed]=useState(false);
+  useEffect(()=>{if(!armed)return;const t=setTimeout(()=>setArmed(false),5000);return()=>clearTimeout(t);},[armed]);
+  const decide=async(approve)=>{
+    setBusy(true);
+    const res=approve
+      ? await saveRecord("accounts",{...acc,approved:true,approvedAt:Date.now(),approvedBy:user.username})
+      : await deleteRecord("accounts",acc.username);
+    setBusy(false);
+    if(res.ok){notify(approve?((acc.displayName||acc.username)+" admitted to the network."):"Registration rejected and removed.",true);reload();}
+    else notify(res.error||"Refused.",false);
+  };
+  return <div style={{border:`1px solid ${RULE}`,borderLeft:`4px solid ${SEAL}`,background:"#fffdf8",
+    marginBottom:6,padding:"10px 14px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+    <img src={mcFaceUrl(acc.mcName||acc.username)} alt="" width={34} height={34}
+      style={{width:34,height:34,imageRendering:"pixelated",border:`1px solid ${RULED}`}}
+      onError={e=>{e.currentTarget.style.visibility="hidden";}}/>
+    <div style={{minWidth:150}}>
+      <div style={{...serif,fontSize:15,fontWeight:600,color:INK}}>{acc.displayName||acc.username}</div>
+      <div style={{...serif,fontSize:12,color:INK3}}>{acc.username}
+        {acc.registeredAt?" · applied "+new Date(acc.registeredAt).toLocaleDateString():""}</div>
+    </div>
+    <span style={{flex:1}}/>
+    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+      <Btn small kind="seal" disabled={busy} onClick={()=>decide(true)}>Approve</Btn>
+      {armed
+        ?<Btn small kind="danger" disabled={busy} onClick={()=>{setArmed(false);decide(false);}}>Confirm rejection</Btn>
+        :<Btn small kind="ghost" disabled={busy} onClick={()=>setArmed(true)}>Reject</Btn>}
+    </div>
+  </div>;
 }
 
 function CreateForm({onClose,onDone,notify}){
@@ -459,8 +735,10 @@ function Row({acc,raw,user,notify,reload,onProfile}){
   const [newPw,setNewPw]=useState("");
   const [busy,setBusy]=useState("");
   const [locked,setLocked]=useState(!!acc.pfpLocked);
-  const admin=isAdmin(user), owner=isOwner(user);
+  const admin=isAdmin(user), owner=isOwner(user), mod=isMod(user);
   const isMe=String(acc.username||"").toLowerCase()===String(user.username||"").toLowerCase();
+  // A moderator may suspend, but never an administrator and never themselves.
+  const maySuspend=mod&&!isMe&&acc.role!=="emperor"&&(admin||!isAdmin(acc));
   const standing=standingFor(acc,raw);
 
   // Every write of an existing account sends the full record so only the field we
@@ -478,7 +756,9 @@ function Row({acc,raw,user,notify,reload,onProfile}){
         <div style={{...serif,fontSize:15,fontWeight:600,color:INK}}>{acc.displayName||acc.username}
           {acc.sysAdmin&&<span style={{marginLeft:8}}><Tag color={SEAL}>ADMIN</Tag></span>}
           {acc.role==="emperor"&&<span style={{marginLeft:6}}><Tag color="#b8902f">OWNER</Tag></span>}
-          {acc.banned&&<span style={{marginLeft:6}}><Tag color={SEAL}>SUSPENDED</Tag></span>}</div>
+          {acc.sysMod&&!acc.sysAdmin&&<span style={{marginLeft:6}}><Tag color="#2f6d3f">MODERATOR</Tag></span>}
+          {acc.banned&&<span style={{marginLeft:6}}><Tag color={SEAL}>SUSPENDED</Tag></span>}
+          {isPending(acc)&&<span style={{marginLeft:6}}><Tag color={SEAL}>UNDER REVIEW</Tag></span>}</div>
         <div style={{...serif,fontSize:12,color:INK3}}>{acc.username}</div>
       </div>
       <span style={{flex:1}}/>
@@ -506,7 +786,9 @@ function Row({acc,raw,user,notify,reload,onProfile}){
         </span>
       </div>
 
-      {!admin&&<Note>You can view this account, but only a network administrator may change it.</Note>}
+      {!admin&&mod&&<Note>As a moderator you may suspend this account. Everything else is the administration's.</Note>}
+      {!admin&&!mod&&<Note>You can view this account, but only a network administrator may change it.</Note>}
+      {!admin&&maySuspend&&<BanControl acc={acc} busy={busy} run={run} base={base}/>}
 
       {admin&&<>
         {/* Minecraft account */}
@@ -546,6 +828,14 @@ function Row({acc,raw,user,notify,reload,onProfile}){
             onClick={()=>run("adm",{...base(),sysAdmin:!acc.sysAdmin},acc.sysAdmin?"Administrator rights revoked.":"Granted administrator rights.")}>
             {acc.sysAdmin?"Revoke administrator":"Grant administrator"}</Btn>
         </Field>}
+
+        {/* moderator grant — the administration's to give */}
+        {admin&&!isMe&&acc.role!=="emperor"&&!acc.sysAdmin&&
+          <Field label="System moderator" hint="May admit accounts awaiting review and suspend accounts. Nothing else — no account creation, no identity changes, no permissions.">
+            <Btn small kind={acc.sysMod?"danger":"ghost"} disabled={busy==="mod"}
+              onClick={()=>run("mod",{...base(),sysMod:!acc.sysMod},acc.sysMod?"Moderator rights revoked.":"Granted moderator rights.")}>
+              {acc.sysMod?"Revoke moderator":"Make moderator"}</Btn>
+          </Field>}
 
         {/* suspension — locks the account out and ends every session it holds */}
         {!isMe&&acc.role!=="emperor"&&<BanControl acc={acc} busy={busy} run={run} base={base}/>}
@@ -729,7 +1019,7 @@ function Profile({username,raw,user,onOpenAdmin,onClose}){
         <div style={{...serif,fontSize:12,color:INK3,fontStyle:"italic",marginTop:16,lineHeight:1.6}}>
           Citizenship, offices and documents are held by each nation and shown here together. Open a
           nation's own service for the full record.
-          {isAdmin(user)&&onOpenAdmin&&<> · <button onClick={onOpenAdmin} style={{background:"none",border:0,...serif,fontSize:12,
+          {isMod(user)&&onOpenAdmin&&<> · <button onClick={onOpenAdmin} style={{background:"none",border:0,...serif,fontSize:12,
             color:SEAL,cursor:"pointer",textDecoration:"underline",textUnderlineOffset:3}}>Manage this account</button></>}
         </div>
       </>}
@@ -869,13 +1159,12 @@ function VintranetApp(){
       padding:"10px 15px",boxShadow:"0 8px 26px rgba(32,29,24,.28)"}}>{toast.text}</div>}
     {view&&view.t==="signin"&&<SignIn onClose={()=>setView(null)} switchRegister={()=>setView({t:"register"})}
       onDone={acc=>{setUser(acc);setView(null);notify("Signed in as "+(acc.displayName||acc.username)+".",true);}}/>}
-    {view&&view.t==="register"&&<Register onClose={()=>setView(null)} switchSignIn={()=>setView({t:"signin"})}
-      onDone={acc=>{setUser(acc);setView(null);notify("Welcome, "+(acc.displayName||acc.username)+". Your account is ready.",true);}}/>}
-    {view&&view.t==="admin"&&isAdmin(user)&&<Admin user={user} raw={raw} reload={loadRaw}
+    {view&&view.t==="register"&&<Register onClose={()=>setView(null)} switchSignIn={()=>setView({t:"signin"})}/>}
+    {view&&view.t==="admin"&&isMod(user)&&<Admin user={user} raw={raw} reload={loadRaw}
       onProfile={un=>open({t:"profile",username:un})} onClose={()=>setView(null)} notify={notify}/>}
     {view&&view.t==="directory"&&<Directory raw={raw} onOpen={un=>open({t:"profile",username:un})} onClose={()=>setView(null)}/>}
     {view&&view.t==="profile"&&<Profile username={view.username} raw={raw} user={user}
-      onOpenAdmin={isAdmin(user)?()=>open({t:"admin"}):null} onClose={()=>setView(null)}/>}
+      onOpenAdmin={isMod(user)?()=>open({t:"admin"}):null} onClose={()=>setView(null)}/>}
     {user&&user.role!=="emperor"&&needsRpName(user)&&<NameGate user={user}
       onNamed={acc=>{setUser(acc);notify("Welcome, "+acc.displayName+". Your name is on record.",true);}}
       onSignOut={()=>{forgetSession();setUser(null);setView(null);}}/>}
