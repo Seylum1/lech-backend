@@ -663,6 +663,9 @@ async function authorizeKeyWrite(actor, key) {
   // administrator grant below so the rule is stated plainly rather than implied.
   if (key === "vt_registration")
     return isSysAdmin(actor) ? null : "Only a network administrator may open or close registration";
+  // How a head of state or government is styled on the Vintranet's own sheet.
+  if (key === "vt_leader_names")
+    return isSysAdmin(actor) ? null : "Only a network administrator may restyle an office-holder";
   // The network administrator runs the estate — the owner, and anyone the owner
   // has granted sysAdmin. Both are trusted with every register here, the same way
   // both already hold account possession and moderation powers.
