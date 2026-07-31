@@ -690,6 +690,12 @@ async function authorizeKeyWrite(actor, key) {
     if (await isDojMember(actor.username)) return null;
     return "Requires an office in the Department of Justice";
   }
+  // The party register is one register for the whole Empire. It is the
+  // Bundeskongress's to keep, but a party is *born* at an election — the
+  // Registrar rules on an application to found one — so a Returning Officer may
+  // enter a newly recognised party on it. Nothing else in the governance domain
+  // opens up: this is the party list alone.
+  if (key === "bk_parties" && isReturningOfficer(actor)) return null;
   switch (keyDomain(key)) {
     case "auth": return null;
     case "finance": return hasFinance(actor) ? null : "Requires Ministry of Finance authority";
@@ -707,20 +713,58 @@ async function authorizeKeyWrite(actor, key) {
   }
 }
 
+// The election a ballot or a candidate registration belongs to, read from the
+// register rather than trusted from the client — the poll's own status is what
+// decides whether the act is in time.
+async function electionById(elId) {
+  const doc = await db.collection("singletons").findOne({ _id: "el_elections" });
+  const all = (doc && doc.value) || {};
+  return all[elId] || null;
+}
+
 // A ballot may be cast only for the citizen record the voter's own account owns,
-// only once, and never changed. Deleting ballots is a Returning Officer act,
-// handled by the normal "elections" domain rule.
+// only while the poll is actually open, only once, and never changed. Deleting
+// ballots is a Returning Officer act, handled by the normal "elections" rule.
 async function authorizeBallot(actor, key, value) {
   if (!actor) return "Not authenticated";
   const citizenId = value && value.citizenId, elId = value && value.elId;
   if (!citizenId || !elId) return "Malformed ballot";
   if ("el_ballot_" + elId + "_" + citizenId !== key) return "Ballot does not match its key";
+  const el = await electionById(elId);
+  if (!el) return "No such election";
+  if (el.status !== "voting") return "The poll is not open";
   const cit = await db.collection("mfa_citizens").findOne({ $or: [{ _id: citizenId }, { id: citizenId }] });
   if (!cit) return "No citizen record for this ballot";
   if (String(cit.username || "").toLowerCase() !== String(actor.username || "").toLowerCase())
     return "You may only cast your own ballot";
+  const allow = new Set(el.eligibility && el.eligibility.length ? el.eligibility : ["citizen", "naturalised"]);
+  if (!allow.has(String(cit.status || "citizen"))) return "Your category is not enfranchised for this election";
   if (await db.collection("singletons").findOne({ _id: key }, { projection: { _id: 1 } }))
     return "A ballot has already been cast and cannot be changed";
+  return null;
+}
+
+// Standing for election. A candidate files their own nomination under their own
+// username — el_reg_<electionId>_<username> — and only while nominations are
+// open. What they may never do is decide their own case: the status fields, the
+// party the Registrar assigns them, and the decision stamps are the Returning
+// Officer's alone, and a paper the Registrar has already ruled on is sealed.
+// A Returning Officer never reaches here; the "elections" domain admits them.
+async function authorizeRegistration(actor, key, value) {
+  if (!actor) return "Not authenticated";
+  const elId = value && value.elId, uname = String(actor.username || "").toLowerCase();
+  if (!elId || !uname) return "Malformed registration";
+  if ("el_reg_" + elId + "_" + uname !== key) return "You may only file your own nomination";
+  const el = await electionById(elId);
+  if (!el) return "No such election";
+  if (el.status !== "registration") return "Nominations are not open";
+  const cur = await db.collection("singletons").findOne({ _id: key });
+  const prev = cur && cur.value;
+  if (prev && prev.status && prev.status !== "pending")
+    return "Your nomination has already been ruled on and cannot be changed";
+  if ((value.status || "pending") !== "pending") return "A candidate may not rule on their own nomination";
+  if (value.partyStatus && value.partyStatus !== "pending") return "A candidate may not approve their own party";
+  if (value.assignedParty) return "Only the Registrar may assign a party";
   return null;
 }
 
@@ -1131,6 +1175,15 @@ app.post("/api/set", async (req, res) => {
       const berr = await authorizeBallot(actor, key, req.body.value);
       if (berr) return res.status(403).json({ ok: false, error: berr });
       await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value: req.body.value, _writtenBy: actor.username, _writtenAt: Date.now() }, { upsert: true });
+      return res.json({ ok: true });
+    }
+    // Filing to stand for election: the candidate's own nomination paper, subject
+    // to its own ownership + timing rules. A Returning Officer skips this and is
+    // admitted by the "elections" domain below, so they can rule on the paper.
+    if (key.indexOf("el_reg_") === 0 && !isReturningOfficer(actor)) {
+      const rerr = await authorizeRegistration(actor, key, value);
+      if (rerr) return res.status(403).json({ ok: false, error: rerr });
+      await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value, _writtenBy: actor.username, _writtenAt: Date.now() }, { upsert: true });
       return res.json({ ok: true });
     }
     // An office communiqué may be published by the officeholder it names (a normal
