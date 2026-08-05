@@ -717,6 +717,13 @@ async function authorizeKeyWrite(actor, key) {
 // register rather than trusted from the client — the poll's own status is what
 // decides whether the act is in time.
 async function electionById(elId) {
+  if (!elId) return null;
+  // el_elections is a map of election objects, so the storage heuristic keeps it
+  // in its own collection — one document per election, _id = the election id.
+  // (An empty or legacy map may instead sit as a single doc in `singletons`, so
+  // fall back to that shape too rather than trust one storage location.)
+  const direct = await db.collection("el_elections").findOne({ _id: elId }).catch(() => null);
+  if (direct) return direct;
   const doc = await db.collection("singletons").findOne({ _id: "el_elections" });
   const all = (doc && doc.value) || {};
   return all[elId] || null;
