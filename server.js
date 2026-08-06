@@ -385,7 +385,7 @@ app.get("/api/collection/:name", async (req, res) => {
     if (PRIVATE_DOCS[name]) {
       const docs = await all();
       if (actor && PRIVATE_DOCS[name](actor)) return res.json({ ok: true, data: docs });
-      if (actor && POLICE_READABLE.has(name) && ((await isDojMember(actor.username)) || (await isHomeOfficeMember(actor.username)))) return res.json({ ok: true, data: docs });
+      if (actor && POLICE_READABLE.has(name) && (await isPolice(actor))) return res.json({ ok: true, data: docs });
       const u = actor ? String(actor.username || "").toLowerCase() : "";
       return res.json({ ok: true, data: docs.filter(d => u && String(d.username || "").toLowerCase() === u) });
     }
@@ -447,11 +447,10 @@ function filterPrivateDocs(key, value, actor, viewerIsPolice) {
 app.get("/api/data", async (req, res) => {
   try {
     const actor = await actorFromReq(req);
-    // Resolved once for the whole snapshot: is the viewer a member of the Republic's
-    // Department of Justice? If so the MDT may read passports and identity cards.
-    const viewerIsPolice = actor
-      ? ((await isDojMember(actor.username)) || (await isHomeOfficeMember(actor.username)))
-      : false;
+    // Resolved once for the whole snapshot: is the viewer running a police
+    // terminal — Lech's LFP, the Republic's DOJ, or Wilden's Home Office? If so
+    // their MDT may read passports and identity cards.
+    const viewerIsPolice = await isPolice(actor);
     const out = {};
     for (const { name } of await db.listCollections().toArray()) {
       if (name === "sessions" || name === "secrets") continue;
@@ -657,6 +656,23 @@ async function isAlliedPolice(actor) {
   return (await isDojMember(actor.username)) || (await isHomeOfficeMember(actor.username));
 }
 
+// Anyone running a police terminal, whichever service it belongs to: the
+// Empire's own Federal Police, the Republic's Department of Justice, or Wilden's
+// Home Office. All three pages carry the same cross-nation dossier, so all three
+// need the same reach.
+//
+// The Empire's LFP was missing here, which left Lech's MDT alone among the three
+// unable to read passports or foreign identity cards — and unable to read even
+// the Empire's OWN passports, because mfa_passports falls back to its Foreign
+// Affairs guard. Only accounts that happened to hold another office (the Emperor,
+// anyone with mfaAccess) ever saw them, so the terminal looked fine to its owner
+// and was empty for every serving constable.
+async function isPolice(actor) {
+  if (!actor) return false;
+  if (canSeeLFP(actor)) return true;          // Lech Federal Police (and the Ministry above it)
+  return await isAlliedPolice(actor);         // Vindex DOJ · Wilden Home Office
+}
+
 async function authorizeKeyWrite(actor, key) {
   if (!actor) return "Not authenticated";
   // Closing registration is an administration act. Checked before the blanket
@@ -689,6 +705,18 @@ async function authorizeKeyWrite(actor, key) {
     if (hasVindex(actor)) return null;
     if (await isDojMember(actor.username)) return null;
     return "Requires an office in the Department of Justice";
+  }
+  // The war record. A battle carries the score that moves the whole war tracker,
+  // and the configuration sets the victory threshold, so both stay with the
+  // network administrator (admitted above). The map itself may also be worked by
+  // either nation's war command. Until now these keys matched no prefix rule and
+  // fell through to "any signed-in account", which let anyone forge a result.
+  if (key === "lvwar_battles" || key === "lvwar_meta")
+    return "Only a network administrator may write the war record";
+  if (key === "lvwar_territories") {
+    if (hasWar(actor)) return null;
+    if (await isVindexWarCommand(actor)) return null;
+    return "Requires War Office or Vindex Department of Defense authority";
   }
   // The party register is one register for the whole Empire. It is the
   // Bundeskongress's to keep, but a party is *born* at an election — the
@@ -773,6 +801,79 @@ async function authorizeRegistration(actor, key, value) {
   if (value.partyStatus && value.partyStatus !== "pending") return "A candidate may not approve their own party";
   if (value.assignedParty) return "Only the Registrar may assign a party";
   return null;
+}
+
+// ── The Lech–Vindex war record ────────────────────────────────────────────────
+// War command on either side: the people who may appoint a battle's Strategy
+// Officer and who may work their own nation's roster. Proven against the live
+// registers, never against a claim from the browser.
+async function isVindexWarCommand(actor) {
+  if (!actor) return false;
+  if (isSysAdmin(actor)) return true;
+  const r = String(actor.vxRole || "");
+  if (r === "president" || r === "vice_president") return true;
+  if (r === "cabinet") {
+    const g = await db.collection("singletons").findOne({ _id: "vx_gov" });
+    const cab = (g && g.value && g.value.cabinet) || {};
+    const post = cab[String(actor.username || "").toLowerCase()];
+    if (/^secretary of defen[cs]e$/i.test(String(post || "").trim())) return true;
+  }
+  return false;
+}
+async function isLechWarCommand(actor) {
+  if (!actor) return false;
+  if (isSysAdmin(actor)) return true;
+  if (hasWar(actor)) return true;                          // Minister of War, or a commander
+  return await holdsNamedOffice(actor, "Chancellor");
+}
+async function isWarCommand(actor, side) {
+  return side === "vindex" ? await isVindexWarCommand(actor) : await isLechWarCommand(actor);
+}
+
+// A nation's service record, wherever it happens to live — some registers were
+// imported as singletons holding a map, others as collections of documents.
+async function serviceRoll(key) {
+  const s = await db.collection("singletons").findOne({ _id: key });
+  if (s && s.value && typeof s.value === "object") return Object.values(s.value);
+  return await db.collection(key).find({}).toArray();
+}
+// "O-3" and "OF-3" are commissions; "E-3" and "OR-3" are not. Vindex commissions
+// at O-1, Lech at OF-1 — everything below is enlisted or non-commissioned.
+const isCommissioned = (g) => /^(O|OF)-\d+$/i.test(String(g || "").trim());
+async function holdsCommission(username, side) {
+  const u = String(username || "").trim().toLowerCase();
+  if (!u) return false;
+  const roll = await serviceRoll(side === "vindex" ? "vx_dod_personnel" : "mow_personnel");
+  return roll.some((p) => p && String(p.username || "").toLowerCase() === u
+    && String(p.status || "active") === "active" && isCommissioned(p.grade));
+}
+
+// A battle roster — one per side per battle. The Strategy Officer works the
+// bench; only that nation's war command may appoint them. Neither side may ever
+// touch the other's roster: the enemy's headcount is precisely what sets your
+// own legal maximum, so writing theirs would be writing your own cap.
+async function authorizeRoster(actor, record) {
+  if (!actor) return "Not authenticated";
+  const side = String((record && record.side) || "").toLowerCase();
+  if (side !== "lech" && side !== "vindex") return "A roster must name its side";
+  if (!record.battleId) return "A roster must name its battle";
+  if (record.id !== "roster_" + record.battleId + "_" + side)
+    return "Roster does not match its battle and side";
+  const command = await isWarCommand(actor, side);
+  const prev = await db.collection("lvwar_rosters").findOne({ _id: record.id });
+  const soPrev = String((prev && prev.strategyOfficer) || "").toLowerCase();
+  const soNext = String(record.strategyOfficer || "").toLowerCase();
+  // Appointing or replacing the Strategy Officer is war command's act alone — a
+  // sitting officer cannot hand the post on, nor keep themselves in it.
+  if (soNext !== soPrev && !command)
+    return "Only this nation's war command may appoint a Strategy Officer";
+  // The post goes to a commissioned officer of that nation's own service, and to
+  // nobody else — the page offers only those names, and this is what makes it so.
+  if (soNext && soNext !== soPrev && !(await holdsCommission(soNext, side)))
+    return "A Strategy Officer must hold a commission in that nation's service";
+  if (command) return null;
+  if (soPrev && soPrev === String(actor.username || "").toLowerCase()) return null;
+  return "Requires this nation's war command, or its appointed Strategy Officer";
 }
 
 // Does this account currently hold the named executive office? Verified against
@@ -1083,6 +1184,7 @@ async function writeRule(collection, actor, record) {
     return null;
   }
   if (collection === "mi_lfp_ops" || collection === "mi_arrests") { if (!canSeeLFP(actor)) return "Not authorised (LFP)"; return null; }
+  if (collection === "lvwar_rosters") return await authorizeRoster(actor, record);
   return await authorizeKeyWrite(actor, collection);
 }
 async function deleteRule(collection, actor) {
