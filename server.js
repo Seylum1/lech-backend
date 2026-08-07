@@ -460,28 +460,43 @@ function filterPrivateDocs(key, value, actor, viewerIsPolice) {
 // A single filtered snapshot of everything the viewer may see, in the same
 // {key:{id:record}} shape the pages already expect — so the page code barely
 // changes, but the intel is filtered before it ever leaves the server.
+//
+// Media stays home. The uploaded images — Bundeskongress ministry and agency
+// logos, press article photographs — are megabytes of base64 that only their
+// own page ever draws, yet they were riding along in every snapshot for every
+// page: seventeen of the snapshot's eighteen megabytes were pictures nobody
+// asked for. Now a page that wants them says so (?media=1); every other page
+// gets the same snapshot minus the images, at a fraction of the weight.
+const MEDIA_KEY = (k) => k.startsWith("bk_logo_") || k.startsWith("press_article_img_");
 app.get("/api/data", async (req, res) => {
   try {
+    const withMedia = req.query.media === "1";
     const actor = await actorFromReq(req);
     // Resolved once for the whole snapshot: is the viewer running a police
     // terminal — Lech's LFP, the Republic's DOJ, or Wilden's Home Office? If so
     // their MDT may read passports and identity cards.
     const viewerIsPolice = await isPolice(actor);
     const out = {};
-    for (const { name } of await db.listCollections().toArray()) {
-      if (name === "sessions" || name === "secrets") continue;
+    // Every collection is read in parallel — the snapshot's cost is one round
+    // trip to the database, not one per collection in single file.
+    const names = (await db.listCollections().toArray()).map(c => c.name)
+      .filter(n => n !== "sessions" && n !== "secrets");
+    await Promise.all(names.map(async (name) => {
       if (name === "accounts") {
         const accs = await db.collection("accounts").find({}).toArray();
         const map = {}; accs.forEach(a => { map[a.username] = sanitizeAccount(a); });
-        out["mi_accounts"] = map; continue;
+        out["mi_accounts"] = map; return;
       }
       if (name === "singletons") {
-        (await db.collection("singletons").find({}).toArray()).forEach(d => { out[d._id] = filterPrivateDocs(d._id, d.value, actor, viewerIsPolice); });
-        continue;
+        (await db.collection("singletons").find({}).toArray()).forEach(d => {
+          if (!withMedia && MEDIA_KEY(d._id)) return;
+          out[d._id] = filterPrivateDocs(d._id, d.value, actor, viewerIsPolice);
+        });
+        return;
       }
       if (name === "bk_bills") {   // bills were grouped on import; restore their original bk_bill_* keys
         (await db.collection("bk_bills").find({}).toArray()).forEach(d => { out[d._id] = d; });
-        continue;
+        return;
       }
       let docs = await db.collection(name).find({}).toArray();
       const kind = PROTECTED[name];
@@ -493,7 +508,7 @@ app.get("/api/data", async (req, res) => {
       let map = {}; docs.forEach(d => { map[d._id] = d; });
       map = filterPrivateDocs(name, map, actor, viewerIsPolice);
       out[name] = map;
-    }
+    }));
     res.json({ ok: true, data: out });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
