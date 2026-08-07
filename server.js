@@ -187,6 +187,15 @@ function needsRoleplayName(acc) {
 // Registration can be closed by an administrator — during an incident, or while
 // the network is not taking new people. The reason is public, because someone
 // turned away deserves to know why.
+// The three nations a new account may name as its own on the register screen. The
+// choice is a *request*, never a grant: it is laid before that nation's foreign
+// ministry, which alone confers citizenship. An account that names none — or
+// whose request is refused — is simply stateless.
+const CITIZENSHIP_NATIONS = {
+  lech: "Empire of Lech",
+  vindex: "Republic of Vindex Nation",
+  wilden: "Wilden",
+};
 async function registrationState() {
   const doc = await db.collection("singletons").findOne({ _id: "vt_registration" });
   const v = (doc && doc.value) || {};
@@ -208,6 +217,9 @@ app.post("/api/register", async (req, res) => {
     if (!MC_NAME_RE.test(raw)) return res.status(400).json({ ok: false, error: "Enter a valid Minecraft username (3–16 letters, numbers or underscores)." });
     if (!rpName.ok) return res.status(400).json({ ok: false, error: rpName.error });
     if (rpName.name.toLowerCase() === raw.toLowerCase()) return res.status(400).json({ ok: false, error: "Your roleplay name must be a proper name, not your username." });
+    const wanted = String((req.body && req.body.citizenship) || "").toLowerCase();
+    if (wanted && !CITIZENSHIP_NATIONS[wanted])
+      return res.status(400).json({ ok: false, error: "Choose one of the three nations as your primary citizenship." });
     const displayName = rpName.name;
     if (!/^[a-f0-9]{64}$/i.test(passwordHash)) return res.status(400).json({ ok: false, error: "A password is required." });
     const id = raw.toLowerCase();
@@ -234,6 +246,10 @@ app.post("/api/register", async (req, res) => {
       approved: false, registeredAt: now,
       _selfRegistered: true, _writtenBy: id, _writtenAt: now,
     };
+    // The nation they named at registration, carried on the account as a standing
+    // request. It becomes visible to that ministry only once the account itself is
+    // admitted to the network — a registration under review asks nothing of anyone.
+    if (wanted) doc.citizenshipRequest = { country: wanted, status: "pending", at: now };
     await db.collection("accounts").insertOne(doc);
     res.json({ ok: true, pending: true,
       message: "Your account has been created and is awaiting review. You'll be able to sign in once it is approved." });
@@ -973,6 +989,15 @@ async function isCitizenOf(collection, username) {
   return docs.some(c => String(c.username || "").toLowerCase() === u && CITIZEN_STATUS.has(String(c.status || "")));
 }
 
+// Who answers a citizenship request, by the nation it names. Each nation's foreign
+// ministry, and no one else — the same authorities that keep the three registers.
+const CIT_REQUEST_AUTH = { lech: hasMFA, vindex: hasVindex, wilden: hasWilden };
+const CIT_REQUEST_DENIAL = {
+  lech: "Requires Foreign Affairs authority in the Empire of Lech",
+  vindex: "Requires an office in the Republic of Vindex Nation",
+  wilden: "Requires an office in Wilden",
+};
+
 // One changed field, with its old and new value: does this actor hold the
 // authority that owns it? Returns an error string, or null if permitted.
 function fieldAuth(actor, field, prev, next) {
@@ -1000,6 +1025,19 @@ function fieldAuth(actor, field, prev, next) {
     // A ministry head may flip ONLY their own agency's flags — the War Office's here.
     if (["mowRole", "mowAccess", "canSetAlert"].includes(field) && actor.mowRole === "minister") return null;
     return isLechInterior(actor) ? null : "Requires Interior authority to change Lech permissions";
+  }
+  // The citizenship a new account asked for. The nation named on the request is the
+  // one that answers it: Lech's Ministry of Foreign Affairs, the Republic's
+  // Department of State, or Wilden's Ministry of Foreign Affairs — each rules on its
+  // own and on nothing else. Granting the citizenship itself is a separate act on
+  // that nation's register; this field only records how the request was answered.
+  if (field === "citizenshipRequest") {
+    if (isSysAdmin(actor)) return null;
+    const pc = String((prev && prev.country) || ""), nc = String((next && next.country) || "");
+    if (pc && nc && pc !== nc) return "A citizenship request cannot be moved to another nation";
+    const guard = CIT_REQUEST_AUTH[pc || nc];
+    if (!guard) return "There is no such nation to rule on a citizenship request";
+    return guard(actor) ? null : CIT_REQUEST_DENIAL[pc || nc];
   }
   if (field === "vxRole") return vxRoleGrant(actor, String(prev || ""), String(next || ""));
   if (field === "wxRole") return wxRoleGrant(actor, String(prev || ""), String(next || ""));
