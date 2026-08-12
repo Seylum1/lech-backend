@@ -749,6 +749,10 @@ async function authorizeKeyWrite(actor, key) {
     if (await isVindexWarCommand(actor)) return null;
     return "Requires War Office or Vindex Department of Defense authority";
   }
+  // The order catalogue — the shared card deck both sides draft from — is balance,
+  // so it stays with the network administrator, like the war record itself.
+  if (key === "lvwar_cards")
+    return isSysAdmin(actor) ? null : "Only a network administrator may edit the war deck";
   // The party register is one register for the whole Empire. It is the
   // Bundeskongress's to keep, but a party is *born* at an election — the
   // Registrar rules on an application to found one — so a Returning Officer may
