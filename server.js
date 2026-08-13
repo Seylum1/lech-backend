@@ -1589,11 +1589,16 @@ app.post("/api/set", async (req, res) => {
       await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value, _writtenBy: actor.username, _writtenAt: Date.now() }, { upsert: true });
       return res.json({ ok: true });
     }
-    // Vwitter — a person's own profile (their bio). Keyed by their username.
+    // Vwitter — a person's own profile: their bio and their (approval-gated)
+    // banner image. Keyed by their username. The banner is a compressed data URL
+    // (~360 KB from the page); a generous ceiling here backstops a client that
+    // bypasses that compression, since every profile ships in the open snapshot.
     if (key.indexOf("vw_profile_") === 0) {
       const owner = key.slice("vw_profile_".length).toLowerCase();
       if (owner !== String(actor.username || "").toLowerCase())
         return res.status(403).json({ ok: false, error: "You may only edit your own profile" });
+      if (JSON.stringify(value || {}).length > 1200000)
+        return res.status(413).json({ ok: false, error: "That image is too large — please use a smaller one." });
       await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value, _writtenBy: actor.username, _writtenAt: Date.now() }, { upsert: true });
       return res.json({ ok: true });
     }
