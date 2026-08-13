@@ -490,6 +490,10 @@ app.get("/api/data", async (req, res) => {
       if (name === "singletons") {
         (await db.collection("singletons").find({}).toArray()).forEach(d => {
           if (!withMedia && MEDIA_KEY(d._id)) return;
+          // Wilden's secret ballots (who → whom) go only to an administrator. The
+          // public tally still ships to everyone, so the count and turnout show,
+          // but not a single voter's choice — not even to the Sovereign.
+          if (String(d._id).indexOf("wx_el_ballot_") === 0 && !isSysAdmin(actor)) return;
           out[d._id] = filterPrivateDocs(d._id, d.value, actor, viewerIsPolice);
         });
         return;
@@ -759,6 +763,12 @@ async function authorizeKeyWrite(actor, key) {
   // enter a newly recognised party on it. Nothing else in the governance domain
   // opens up: this is the party list alone.
   if (key === "bk_parties" && isReturningOfficer(actor)) return null;
+  // Wilden general election — the config, the tally's upkeep, and nomination
+  // rulings belong to the Returning Officer (the Sovereign, or an administrator).
+  // Secret ballots and a candidate's own nomination are intercepted in /api/set
+  // before this; everything else wx_el_* is the Returning Officer's.
+  if (key.indexOf("wx_el_") === 0)
+    return isWildenReturningOfficer(actor) ? null : "Requires the Returning Officer (the Sovereign or an administrator)";
   switch (keyDomain(key)) {
     case "auth": return null;
     case "finance": return hasFinance(actor) ? null : "Requires Ministry of Finance authority";
@@ -835,6 +845,78 @@ async function authorizeRegistration(actor, key, value) {
   if ((value.status || "pending") !== "pending") return "A candidate may not rule on their own nomination";
   if (value.partyStatus && value.partyStatus !== "pending") return "A candidate may not approve their own party";
   if (value.assignedParty) return "Only the Registrar may assign a party";
+  return null;
+}
+
+// ── The Wilden general election (House of Commons) ────────────────────────────
+// A SECRET ballot. The raw vote (who → whom) is written admin-only and never
+// leaves the server to anyone else; the live count runs off a public tally the
+// ballot box keeps, so the Sovereign — who is the Returning Officer — sees the
+// result and the turnout but never the link between a voter and their choice.
+// The Returning Officer is the Sovereign (who reigns and does not govern) or a
+// network administrator.
+function isWildenReturningOfficer(a) {
+  return !!a && (isSysAdmin(a) || String(a.wxRole || "") === "sovereign");
+}
+async function wildenElectionById(elId) {
+  if (!elId) return null;
+  const direct = await db.collection("wx_el_elections").findOne({ _id: elId }).catch(() => null);
+  if (direct) return direct;
+  const doc = await db.collection("singletons").findOne({ _id: "wx_el_elections" });
+  const all = (doc && doc.value) || {};
+  return all[elId] || null;
+}
+// A Wildenian candidate files their own nomination while nominations are open;
+// only the Returning Officer rules on it.
+async function authorizeWildenRegistration(actor, key, value) {
+  if (!actor) return "Not authenticated";
+  const elId = value && value.elId, uname = String(actor.username || "").toLowerCase();
+  if (!elId || !uname) return "Malformed nomination";
+  if ("wx_el_reg_" + elId + "_" + uname !== key) return "You may only file your own nomination";
+  const el = await wildenElectionById(elId);
+  if (!el) return "No such election";
+  if (el.status !== "registration") return "Nominations are not open";
+  const cur = await db.collection("singletons").findOne({ _id: key });
+  const prev = cur && cur.value;
+  if (prev && prev.status && prev.status !== "pending")
+    return "Your nomination has already been ruled on and cannot be changed";
+  if ((value.status || "pending") !== "pending") return "A candidate may not rule on their own nomination";
+  return null;
+}
+// Casting a Wilden ballot: one vote per enfranchised citizen, for the citizen
+// record the account owns, only while the poll is open, never changed. The raw
+// ballot is stored with a _secretBallot flag (the snapshot only ever hands those
+// to an administrator); a public per-candidate tally is incremented so the count
+// and turnout are visible to all with no voter→choice link exposed.
+async function castWildenBallot(actor, key, value) {
+  if (!actor) return "Not authenticated";
+  const citizenId = value && value.citizenId, elId = value && value.elId;
+  const choice = value && value.choice ? String(value.choice) : "";
+  if (!citizenId || !elId) return "Malformed ballot";
+  if ("wx_el_ballot_" + elId + "_" + citizenId !== key) return "Ballot does not match its key";
+  const el = await wildenElectionById(elId);
+  if (!el) return "No such election";
+  if (el.status !== "voting") return "The poll is not open";
+  const cit = await db.collection("wx_state_citizens").findOne({ $or: [{ _id: citizenId }, { id: citizenId }] });
+  if (!cit) return "No citizen record for this ballot";
+  if (String(cit.username || "").toLowerCase() !== String(actor.username || "").toLowerCase())
+    return "You may only cast your own ballot";
+  const allow = new Set(el.eligibility && el.eligibility.length ? el.eligibility : ["citizen", "naturalised"]);
+  if (!allow.has(String(cit.status || "citizen"))) return "You are not enfranchised for this election";
+  if (await db.collection("singletons").findOne({ _id: key }, { projection: { _id: 1 } }))
+    return "A ballot has already been cast and cannot be changed";
+  await db.collection("singletons").replaceOne({ _id: key },
+    { _id: key, value: { elId, citizenId, choice, at: Date.now() }, _secretBallot: true, _writtenBy: actor.username, _writtenAt: Date.now() },
+    { upsert: true });
+  const tkey = "wx_el_tally_" + elId;
+  const tdoc = await db.collection("singletons").findOne({ _id: tkey });
+  const tally = (tdoc && tdoc.value && typeof tdoc.value === "object") ? tdoc.value : {};
+  if (!tally.counts || typeof tally.counts !== "object") tally.counts = {};
+  if (!Array.isArray(tally.voted)) tally.voted = [];
+  if (choice) tally.counts[choice] = (tally.counts[choice] || 0) + 1;
+  if (!tally.voted.includes(citizenId)) tally.voted.push(citizenId);
+  tally.total = (tally.total || 0) + 1;
+  await db.collection("singletons").replaceOne({ _id: tkey }, { _id: tkey, value: tally }, { upsert: true });
   return null;
 }
 
@@ -1348,6 +1430,21 @@ app.post("/api/set", async (req, res) => {
     // admitted by the "elections" domain below, so they can rule on the paper.
     if (key.indexOf("el_reg_") === 0 && !isReturningOfficer(actor)) {
       const rerr = await authorizeRegistration(actor, key, value);
+      if (rerr) return res.status(403).json({ ok: false, error: rerr });
+      await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value, _writtenBy: actor.username, _writtenAt: Date.now() }, { upsert: true });
+      return res.json({ ok: true });
+    }
+    // Wilden secret ballot: the ballot box stores the vote admin-only and updates
+    // the public tally itself — never the raw choice through the open snapshot.
+    if (key.indexOf("wx_el_ballot_") === 0) {
+      const berr = await castWildenBallot(actor, key, req.body.value);
+      if (berr) return res.status(403).json({ ok: false, error: berr });
+      return res.json({ ok: true });
+    }
+    // A Wildenian candidate's own nomination (the Returning Officer skips this and
+    // is admitted by the wx_el_ rule to rule on any paper).
+    if (key.indexOf("wx_el_reg_") === 0 && !isWildenReturningOfficer(actor)) {
+      const rerr = await authorizeWildenRegistration(actor, key, value);
       if (rerr) return res.status(403).json({ ok: false, error: rerr });
       await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value, _writtenBy: actor.username, _writtenAt: Date.now() }, { upsert: true });
       return res.json({ ok: true });
