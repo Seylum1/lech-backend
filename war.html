@@ -1,0 +1,2934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>War Room — Empire of Lech ⚔ Republic of Vindex Nation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/><link rel="preconnect" href="https://lech-backend.onrender.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Playfair+Display:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0b0d10; --bg2:#101419; --bg3:#151a21; --line:#242c36; --line2:#33404e;
+  --ink:#e3e9ef; --ink-dim:#8b98a5; --ink-faint:#5c6873;
+  --lech:#b13c3c; --lech-deep:#6b2020; --lech-bright:#e08b8b;
+  --vin:#2b7a4b; --vin-deep:#123f27; --vin-bright:#57c084;
+  --wil:#8b929b; --wil-deep:#4c525a; --wil-bright:#c4cad2;
+  --contest:#d99a3d; --contest-deep:#8a5a1d;
+  --danger:#c8574f;
+}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:'Crimson Text',Georgia,serif;overflow:hidden;}
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px;}
+button,input,select,textarea{font-family:'Crimson Text',Georgia,serif;color:var(--ink);}
+.mono{font-family:'Share Tech Mono',monospace;}
+
+#app{display:flex;flex-direction:column;height:100vh;}
+
+/* ── Header ─────────────────────────────────────────── */
+header{display:flex;align-items:center;gap:1rem;padding:.55rem 1rem;border-bottom:1px solid var(--line);background:linear-gradient(180deg,var(--bg2),var(--bg));flex-wrap:wrap;}
+.hdr-crests{display:flex;align-items:center;gap:.55rem;}
+.hdr-crests .x{color:var(--ink-faint);font-size:.95rem;}
+/* Each crest is a button: tap it to see who leads that country. */
+.crest{display:flex;align-items:center;gap:.45rem;background:transparent;border:1px solid transparent;border-radius:4px;padding:.2rem .45rem;cursor:pointer;font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.14em;transition:all .15s;}
+.crest:hover{background:var(--bg3);border-color:var(--line2);}
+.crest.l{color:var(--lech-bright);}
+.crest.v{color:var(--vin-bright);}
+.crest-img{width:26px;height:26px;flex:none;border-radius:3px;background-size:contain;background-position:center;background-repeat:no-repeat;display:none;}
+.crest-img.ok{display:block;}
+/* With no crest image on disk the button still reads clearly, so nothing breaks. */
+.crest .crest-name{white-space:nowrap;}
+@media(max-width:720px){ .crest .crest-name{display:none;} .crest{padding:.2rem;} .crest-img{display:block;background:var(--bg3);} }
+#warTitleWrap{flex:1;min-width:220px;text-align:center;}
+#warTitle{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:1.35rem;letter-spacing:.04em;outline:none;border-bottom:1px dashed transparent;display:inline-block;padding:0 .35rem;min-width:120px;}
+#warTitle[contenteditable="true"]:hover,#warTitle[contenteditable="true"]:focus{border-bottom-color:var(--line2);}
+#warSub{font-size:.8rem;color:var(--ink-dim);font-style:italic;outline:none;display:inline-block;padding:0 .35rem;}
+#warSub[contenteditable="true"]:hover,#warSub[contenteditable="true"]:focus{border-bottom:1px dashed var(--line2);}
+.hdr-actions{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;}
+.btn{background:var(--bg3);border:1px solid var(--line2);border-radius:4px;padding:.32rem .7rem;font-size:.85rem;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.btn:hover{border-color:var(--ink-faint);background:#1b222b;}
+a.btn{text-decoration:none;color:var(--ink);display:inline-flex;align-items:center;flex-shrink:0;}
+.btn.primary{border-color:var(--vin-deep);background:#122419;color:var(--vin-bright);}
+.btn.primary:hover{border-color:var(--vin);}
+.btn.danger{color:#e79d97;border-color:#5c2c28;}
+.btn.danger:hover{border-color:var(--danger);}
+.btn.active{background:#1e2833;border-color:var(--ink-dim);color:#fff;box-shadow:inset 0 0 0 1px var(--ink-faint);}
+.btn:disabled{opacity:.4;cursor:default;}
+#userBox{display:flex;align-items:center;gap:.45rem;font-size:.82rem;}
+#userBox img{width:22px;height:22px;border-radius:3px;image-rendering:pixelated;}
+#userOffice{color:var(--ink-faint);font-size:.72rem;font-family:'Share Tech Mono',monospace;letter-spacing:.05em;}
+.spectator{font-family:'Share Tech Mono',monospace;font-size:.68rem;letter-spacing:.12em;color:var(--contest);border:1px solid var(--contest-deep);border-radius:3px;padding:.15rem .5rem;}
+
+/* ── Leadership bubble (opened from a crest in the header) ── */
+#leadersOverlay{position:fixed;inset:0;z-index:9050;background:rgba(5,8,12,.86);display:none;align-items:center;justify-content:center;padding:1rem;}
+#leadersOverlay.show{display:flex;}
+#leadersBox{background:var(--bg2);border:1px solid var(--line2);border-top-width:3px;border-radius:6px;width:100%;max-width:340px;padding:1rem 1.1rem 1.1rem;box-shadow:0 18px 50px rgba(0,0,0,.6);}
+#leadersBox.lech{border-top-color:var(--lech);}
+#leadersBox.vindex{border-top-color:var(--vin);}
+.ldr-top{display:flex;justify-content:space-between;align-items:center;gap:.6rem;margin-bottom:.15rem;}
+.ldr-title{font-family:'Cinzel',serif;font-size:.9rem;letter-spacing:.1em;}
+#leadersBox.lech .ldr-title{color:var(--lech-bright);}
+#leadersBox.vindex .ldr-title{color:var(--vin-bright);}
+.ldr-sub{font-size:.76rem;color:var(--ink-faint);font-style:italic;margin-bottom:.8rem;}
+.ldr-x{background:transparent;border:none;color:var(--ink-dim);font-size:1rem;cursor:pointer;line-height:1;padding:.2rem;}
+.ldr-x:hover{color:var(--ink);}
+.leader{display:flex;align-items:center;gap:.6rem;padding:.4rem 0;border-top:1px solid var(--line);}
+.leader:first-of-type{border-top:none;}
+.leader .head{width:34px;height:34px;border-radius:4px;image-rendering:pixelated;border:1px solid var(--line2);flex-shrink:0;}
+.leader span.head.vacant{display:flex;align-items:center;justify-content:center;background:var(--bg3);color:var(--ink-faint);font-size:1rem;}
+.leader.isvacant .l-name{color:var(--ink-faint);font-style:italic;font-weight:400;}
+.l-title{font-family:'Share Tech Mono',monospace;font-size:.58rem;letter-spacing:.12em;color:var(--ink-faint);}
+.l-name{font-size:.9rem;font-weight:600;line-height:1.25;}
+
+/* ── Tracker ────────────────────────────────────────── */
+#tracker{padding:.7rem 1.2rem .55rem;border-bottom:1px solid var(--line);background:var(--bg2);}
+.trk-row{display:flex;align-items:center;gap:1rem;}
+.trk-side{font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.16em;width:170px;line-height:1.5;}
+.trk-side.vin{text-align:right;color:var(--vin-bright);}
+.trk-side.lech{color:var(--lech-bright);}
+.trk-side small{display:block;color:var(--ink-faint);letter-spacing:.1em;font-size:.6rem;}
+.trk-bar-wrap{flex:1;position:relative;height:46px;}
+.trk-bar{position:absolute;inset:12px 0;background:linear-gradient(90deg,rgba(43,122,75,.22),rgba(20,24,30,.6) 38%,rgba(20,24,30,.6) 62%,rgba(177,60,60,.22));border:1px solid var(--line2);border-radius:4px;overflow:hidden;}
+.trk-fill{position:absolute;top:0;bottom:0;transition:left .5s cubic-bezier(.3,.7,.3,1),right .5s cubic-bezier(.3,.7,.3,1);}
+.trk-fill.lech{background:linear-gradient(90deg,rgba(177,60,60,.15),rgba(177,60,60,.55));}
+.trk-fill.vin{background:linear-gradient(90deg,rgba(43,122,75,.55),rgba(43,122,75,.15));}
+.trk-center{position:absolute;top:6px;bottom:6px;left:50%;width:0;border-left:1px dashed var(--ink-faint);}
+.trk-tick{position:absolute;bottom:12px;width:1px;height:5px;background:var(--line2);}
+.trk-tick.mid{height:8px;background:var(--ink-faint);}
+.trk-needle{position:absolute;top:2px;bottom:2px;width:0;transition:left .5s cubic-bezier(.3,.7,.3,1);z-index:2;}
+.trk-needle::before{content:'';position:absolute;top:8px;bottom:8px;left:-1.5px;width:3px;background:#f2f5f8;border-radius:2px;box-shadow:0 0 8px rgba(255,255,255,.6);}
+.trk-score{position:absolute;top:-9px;left:50%;transform:translateX(-50%);font-family:'Share Tech Mono',monospace;font-size:.72rem;background:var(--bg);border:1px solid var(--line2);border-radius:3px;padding:0 .35rem;white-space:nowrap;}
+.trk-status{display:flex;justify-content:center;align-items:baseline;gap:1.2rem;margin-top:.35rem;font-size:.85rem;color:var(--ink-dim);}
+#trkStatusMain{font-family:'Cinzel',serif;font-size:.85rem;letter-spacing:.12em;color:var(--ink);}
+#trkStatusMain.lech{color:var(--lech-bright);}
+#trkStatusMain.vin{color:var(--vin-bright);}
+#trkStatusMain.victory{font-size:1rem;text-shadow:0 0 14px currentColor;}
+.trk-thr{display:flex;align-items:center;gap:.3rem;font-size:.75rem;color:var(--ink-faint);}
+.trk-thr input{width:52px;background:var(--bg3);border:1px solid var(--line2);border-radius:3px;padding:.1rem .3rem;font-family:'Share Tech Mono',monospace;font-size:.75rem;text-align:center;}
+
+/* ── Objectives (each side's standing orders, set by the administrator) ── */
+.trk-obj{display:flex;justify-content:space-between;align-items:center;gap:.8rem;margin-top:.5rem;padding-top:.45rem;border-top:1px solid var(--line);flex-wrap:wrap;}
+.obj{display:flex;align-items:center;gap:.5rem;min-width:0;flex:1;}
+.obj.vin{justify-content:flex-start;}
+.obj.lech{justify-content:flex-end;text-align:right;}
+.obj-lbl{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.14em;flex-shrink:0;}
+.obj.vin .obj-lbl{color:var(--vin-bright);opacity:.85;}
+.obj.lech .obj-lbl{color:var(--lech-bright);opacity:.85;}
+/* The verb and the place it names share one typeface, size and tracking, so an
+   order reads as a single line of dispatch instead of two mismatched fragments. */
+.obj-verb,.obj-tgt,.obj-note{font-family:'Share Tech Mono',monospace;font-size:.78rem;letter-spacing:.08em;line-height:1.4;}
+.obj-verb{font-weight:700;white-space:nowrap;flex-shrink:0;}
+.obj-tgt{font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.obj-tgt.none{font-weight:400;color:var(--ink-dim);}
+.obj-note{color:var(--ink-faint);}
+.obj-verb.attack{color:#ffb35c;}
+.obj-verb.defend{color:#8fb7d6;}
+.obj-verb.hold{color:var(--ink-dim);}
+.obj-verb.win{color:var(--contest);text-shadow:0 0 10px rgba(217,154,61,.5);}
+.obj-verb.lost{color:var(--danger);}
+.obj-verb.idle{color:var(--ink-faint);font-weight:400;}
+/* administrator's inline editor */
+.obj-edit{display:flex;align-items:center;gap:.3rem;flex:1;min-width:0;}
+.obj-edit select,.obj-edit input{background:var(--bg);border:1px solid var(--line2);border-radius:3px;padding:.14rem .35rem;font-family:'Share Tech Mono',monospace;font-size:.74rem;}
+.obj-edit select{flex-shrink:0;}
+.obj-edit input{flex:1;min-width:60px;}
+@media(max-width:760px){ .trk-obj{flex-direction:column;align-items:stretch;gap:.35rem;} .obj.lech{justify-content:flex-start;text-align:left;} }
+@media(max-height:620px){ .trk-obj{margin-top:.3rem;padding-top:.3rem;} .obj-verb,.obj-tgt,.obj-note{font-size:.7rem;} }
+
+/* ── Battle banner ──────────────────────────────────────
+   Stacked and centred: the label on top, then the battle, then when it is, then
+   one clear way in. Everything reads down the middle of the page. */
+#nextBattle{display:flex;flex-direction:column;align-items:center;gap:.28rem;padding:.55rem 1rem .6rem;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#1d1608,#12100b);text-align:center;}
+#nextBattle[hidden]{display:none;}
+.nb-lbl{font-family:'Cinzel',serif;font-size:.64rem;letter-spacing:.24em;color:var(--contest);}
+.nb-name{font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:1.1rem;color:var(--ink);line-height:1.2;}
+/* The time reads as ordinary prose — no boxed-off monospace chip. */
+.nb-when{font-size:.92rem;color:var(--ink-dim);}
+.nb-when b{color:var(--ink);font-weight:600;}
+.nb-when em{font-style:italic;color:var(--ink-faint);font-size:.85rem;}
+.nb-tallies{display:flex;gap:.6rem;flex-wrap:wrap;justify-content:center;}
+.btn.roster{background:linear-gradient(180deg,#16321f,#102618);border-color:var(--vin);color:#9ff0bf;font-family:'Cinzel',serif;font-size:.78rem;letter-spacing:.14em;padding:.34rem 1.5rem;}
+.btn.roster:hover{border-color:var(--vin-bright);background:linear-gradient(180deg,#1c4028,#143020);color:#c8ffdd;}
+@media(max-height:620px){ #nextBattle{padding:.28rem .7rem .3rem;gap:.15rem;} .nb-name{font-size:.9rem;} .nb-when{font-size:.78rem;} }
+
+/* ── Main layout ────────────────────────────────────── */
+main{flex:1;display:flex;min-height:0;}
+#sidebar{width:330px;min-width:330px;border-right:1px solid var(--line);background:var(--bg2);display:flex;flex-direction:column;min-height:0;transition:margin-left .25s;}
+#sidebar.hidden{margin-left:-330px;}
+.tabs{display:flex;border-bottom:1px solid var(--line);}
+.tab{flex:1;padding:.5rem;text-align:center;font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.12em;cursor:pointer;color:var(--ink-dim);border-bottom:2px solid transparent;user-select:none;}
+.tab.active{color:var(--ink);border-bottom-color:var(--contest);background:var(--bg3);}
+.panel{flex:1;overflow-y:auto;padding:.7rem;display:none;min-height:0;}
+.panel.active{display:block;}
+
+/* territory cards */
+.tcard{border:1px solid var(--line);border-radius:5px;background:var(--bg3);margin-bottom:.5rem;padding:.45rem .55rem;cursor:pointer;transition:border-color .15s;}
+.tcard:hover{border-color:var(--line2);}
+.tcard.sel{border-color:var(--contest);box-shadow:0 0 0 1px var(--contest-deep);}
+.tcard-top{display:flex;align-items:center;gap:.45rem;}
+.chip{width:13px;height:13px;border-radius:3px;border:1px solid rgba(255,255,255,.25);flex:none;}
+.tcard-name{flex:1;font-weight:600;font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tcard-world{font-size:.68rem;color:var(--ink-faint);font-family:'Share Tech Mono',monospace;letter-spacing:.05em;}
+.tcard-status{font-size:.72rem;margin-top:.15rem;color:var(--ink-dim);font-style:italic;}
+.tcard-edit{margin-top:.5rem;border-top:1px solid var(--line);padding-top:.5rem;display:grid;gap:.4rem;cursor:default;}
+.frow{display:grid;grid-template-columns:82px 1fr;align-items:center;gap:.4rem;font-size:.78rem;color:var(--ink-dim);}
+.frow input,.frow select,.frow textarea{background:var(--bg);border:1px solid var(--line2);border-radius:3px;padding:.25rem .4rem;font-size:.85rem;width:100%;}
+.frow input:disabled,.frow select:disabled,.frow textarea:disabled{opacity:.6;}
+.frow textarea{resize:vertical;min-height:40px;}
+.tcard-btns{display:flex;gap:.35rem;justify-content:flex-end;}
+.tcard-btns .btn{font-size:.75rem;padding:.2rem .5rem;}
+.empty-note{color:var(--ink-faint);font-style:italic;font-size:.85rem;text-align:center;padding:1.2rem .5rem;line-height:1.6;}
+
+/* battle form + log */
+#battleForm{border:1px solid var(--line);border-radius:5px;background:var(--bg3);padding:.55rem;display:grid;gap:.4rem;margin-bottom:.7rem;}
+#battleForm h3{font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.14em;color:var(--ink-dim);font-weight:600;}
+.bf-grid{display:grid;grid-template-columns:1fr 1fr;gap:.4rem;}
+#battleForm input,#battleForm select,#battleForm textarea{background:var(--bg);border:1px solid var(--line2);border-radius:3px;padding:.28rem .4rem;font-size:.85rem;width:100%;}
+#battleForm textarea{resize:vertical;min-height:36px;}
+.bcard{border:1px solid var(--line);border-left-width:3px;border-radius:4px;background:var(--bg3);margin-bottom:.45rem;padding:.4rem .55rem;}
+.bcard.lech{border-left-color:var(--lech);}
+.bcard.vindex{border-left-color:var(--vin);}
+.bcard.stalemate{border-left-color:var(--ink-faint);}
+.bcard-top{display:flex;align-items:baseline;gap:.5rem;}
+.bcard-name{font-weight:600;flex:1;}
+.bcard-pts{font-family:'Share Tech Mono',monospace;font-size:.78rem;}
+.bcard-pts.lech{color:var(--lech-bright);}
+.bcard-pts.vindex{color:var(--vin-bright);}
+.bcard-pts.stalemate{color:var(--ink-faint);}
+.bcard-meta{font-size:.74rem;color:var(--ink-dim);font-family:'Share Tech Mono',monospace;margin-top:.1rem;}
+.bcard-notes{font-size:.82rem;color:var(--ink-dim);font-style:italic;margin-top:.2rem;}
+.bcard-by{font-size:.68rem;color:var(--ink-faint);font-family:'Share Tech Mono',monospace;margin-top:.2rem;}
+.bcard-btns{display:flex;gap:.3rem;justify-content:flex-end;margin-top:.25rem;flex-wrap:wrap;}
+.bcard-btns .btn{font-size:.7rem;padding:.12rem .45rem;}
+.bf-hint{font-size:.74rem;color:var(--ink-faint);font-style:italic;line-height:1.4;}
+/* Recording the result — only ever offered once a battle has actually been fought. */
+.bresult{margin-top:.5rem;padding:.5rem .55rem;border:1px solid var(--contest-deep);border-radius:4px;background:rgba(217,154,61,.07);}
+.bresult[hidden]{display:none;}
+.brl{font-family:'Share Tech Mono',monospace;font-size:.6rem;letter-spacing:.14em;color:var(--contest);margin-bottom:.28rem;}
+.bropts{display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.5rem;}
+.bropts .btn{font-size:.72rem;padding:.16rem .5rem;}
+.bropts .btn.active{background:#221b10;border-color:var(--contest);color:#ffd98a;box-shadow:inset 0 0 0 1px var(--contest-deep);}
+.brfoot{display:flex;gap:.3rem;justify-content:flex-end;}
+.brfoot .btn{font-size:.72rem;padding:.16rem .55rem;}
+
+/* ── Map area ───────────────────────────────────────── */
+#mapArea{flex:1;position:relative;display:flex;flex-direction:column;min-width:0;background:#07090b;}
+#toolbar{display:flex;align-items:center;gap:.4rem;padding:.4rem .6rem;border-bottom:1px solid var(--line);background:var(--bg2);flex-wrap:wrap;}
+#toolbar .sep{width:1px;height:20px;background:var(--line);margin:0 .2rem;}
+#toolbar label{font-size:.75rem;color:var(--ink-dim);display:flex;align-items:center;gap:.35rem;}
+#opacity{width:80px;accent-color:var(--contest);}
+#theatreTabs select{background:#221b10;border:1px solid var(--contest-deep);border-radius:4px;padding:.28rem .5rem;font-family:'Cinzel',serif;font-size:.78rem;letter-spacing:.06em;color:#fff;cursor:pointer;}
+#viewport{flex:1;position:relative;overflow:hidden;cursor:grab;touch-action:none;}
+#viewport.drawing{cursor:crosshair;}
+#viewport.panning{cursor:grabbing;}
+#world{position:absolute;top:0;left:0;transform-origin:0 0;}
+#mapImg{display:block;user-select:none;pointer-events:none;image-rendering:auto;}
+#overlay{position:absolute;top:0;left:0;overflow:visible;}
+#overlay .terr-fill{cursor:pointer;}
+#viewport.drawing .terr-fill{pointer-events:none;}
+.handle{cursor:move;}
+#mapNote{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:.8rem;color:var(--ink-faint);text-align:center;padding:2rem;}
+#mapNote .big{font-family:'Cinzel',serif;font-size:1.1rem;letter-spacing:.14em;color:var(--ink-dim);}
+#legend{position:absolute;right:10px;top:10px;background:rgba(11,13,16,.88);border:1px solid var(--line2);border-radius:5px;padding:.45rem .6rem;font-size:.74rem;z-index:5;backdrop-filter:blur(3px);}
+#legend .lrow{display:flex;align-items:center;gap:.45rem;margin:.18rem 0;color:var(--ink-dim);}
+#legend .sw{width:16px;height:11px;border-radius:2px;border:1px solid rgba(255,255,255,.2);flex:none;}
+#drawTip{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:rgba(11,13,16,.92);border:1px solid var(--contest-deep);color:var(--contest);border-radius:4px;padding:.3rem .8rem;font-size:.8rem;z-index:5;display:none;white-space:nowrap;}
+footer{padding:.28rem .8rem;border-top:1px solid var(--line);background:var(--bg2);font-size:.74rem;color:var(--ink-faint);display:flex;gap:1rem;justify-content:space-between;}
+#toast{position:fixed;bottom:44px;left:50%;transform:translateX(-50%);background:#1b222b;border:1px solid var(--line2);border-radius:5px;padding:.45rem .9rem;font-size:.85rem;z-index:99;opacity:0;transition:opacity .25s;pointer-events:none;box-shadow:0 4px 18px rgba(0,0,0,.5);max-width:80vw;}
+#toast.show{opacity:1;}
+
+/* ── Battle bar extras: side tallies, personal status, cap alert ── */
+.side-count{font-family:'Share Tech Mono',monospace;font-size:.76rem;letter-spacing:.04em;color:var(--ink-dim);border:1px solid var(--line2);border-radius:3px;padding:.12rem .5rem;}
+.side-count b{color:var(--ink);font-size:.86rem;}
+.side-count em{font-style:normal;opacity:.75;margin-left:.35rem;}
+.side-count.vin{border-color:var(--vin-deep);color:var(--vin-bright);}
+.side-count.lech{border-color:var(--lech-deep);color:var(--lech-bright);}
+.side-count.over{border-color:var(--danger);color:#ffb0aa;background:rgba(200,87,79,.14);}
+.nb-lbl.livelbl{color:var(--danger);animation:nbpulse 1.6s infinite;}
+@keyframes nbpulse{0%,100%{opacity:1}60%{opacity:.4}}
+.nb-you{flex-basis:100%;text-align:center;font-family:'Cinzel',serif;font-size:.92rem;letter-spacing:.16em;padding:.3rem .6rem;border-radius:3px;margin-top:.15rem;}
+.nb-you.in{background:rgba(43,122,75,.22);border:1px solid var(--vin);color:#9ff0bf;}
+.nb-you.out{background:rgba(200,87,79,.2);border:1px solid var(--danger);color:#ffc2bc;}
+.nb-you em{font-family:'Share Tech Mono',monospace;font-style:normal;font-size:.7rem;letter-spacing:.08em;opacity:.85;margin-left:.5rem;}
+.nb-over{flex-basis:100%;text-align:center;font-family:'Share Tech Mono',monospace;font-size:.8rem;letter-spacing:.1em;color:#ffc2bc;background:rgba(200,87,79,.22);border:1px solid var(--danger);border-radius:3px;padding:.22rem .6rem;margin-top:.15rem;}
+.phase{font-family:'Share Tech Mono',monospace;font-size:.62rem;letter-spacing:.14em;border-radius:3px;padding:.08rem .45rem;border:1px solid;}
+.phase.ph-sched{color:var(--contest);border-color:var(--contest-deep);}
+.phase.ph-live{color:#ffc2bc;border-color:var(--danger);background:rgba(200,87,79,.18);}
+.phase.ph-done{color:var(--ink-faint);border-color:var(--line2);}
+.bcard.scheduled{border-left-color:var(--contest);}
+.bcard.live{border-left-color:var(--danger);}
+
+/* ── Roster room ── */
+#rosterOverlay{position:fixed;inset:0;z-index:9100;background:rgba(5,8,12,.94);display:none;align-items:flex-start;justify-content:center;padding:1rem;overflow-y:auto;}
+#rosterOverlay.show{display:flex;}
+#rosterBox{background:var(--bg2);border:1px solid var(--line2);border-radius:6px;width:100%;max-width:1060px;padding:1rem 1.15rem 1.2rem;margin:auto 0;}
+.rtop{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;}
+.rttl{font-family:'Playfair Display',Georgia,serif;font-weight:900;font-size:1.3rem;}
+.rsub{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--ink-faint);margin-top:.25rem;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;}
+.rrule{font-size:.82rem;color:var(--ink-dim);font-style:italic;margin:.7rem 0 .9rem;padding:.45rem .7rem;border-left:2px solid var(--contest-deep);background:var(--bg3);border-radius:0 3px 3px 0;}
+.rrule b{color:var(--contest);font-style:normal;}
+.rcols{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;}
+@media(max-width:820px){ .rcols{grid-template-columns:1fr;} }
+.rcol{border:1px solid var(--line);border-top-width:3px;border-radius:4px;background:var(--bg3);padding:.7rem .8rem;}
+.rcol.vin{border-top-color:var(--vin);}
+.rcol.lech{border-top-color:var(--lech);}
+.rhead{display:flex;justify-content:space-between;align-items:baseline;gap:.6rem;flex-wrap:wrap;margin-bottom:.5rem;}
+.rside{font-family:'Cinzel',serif;font-size:.82rem;letter-spacing:.1em;}
+.rcol.vin .rside{color:var(--vin-bright);}
+.rcol.lech .rside{color:var(--lech-bright);}
+.rcount{font-family:'Share Tech Mono',monospace;font-size:.74rem;color:var(--ink-dim);}
+.rcount b{color:var(--ink);font-size:.88rem;}
+.rcount.over{color:#ffb0aa;}
+.rover{font-family:'Share Tech Mono',monospace;font-size:.76rem;letter-spacing:.08em;color:#ffc2bc;background:rgba(200,87,79,.2);border:1px solid var(--danger);border-radius:3px;padding:.25rem .5rem;margin-bottom:.5rem;text-align:center;}
+.rslots{font-family:'Share Tech Mono',monospace;font-size:.7rem;color:var(--ink-faint);margin-bottom:.5rem;}
+.rmeta{display:flex;justify-content:space-between;align-items:center;gap:.5rem;font-size:.78rem;color:var(--ink-dim);padding:.22rem 0;border-bottom:1px solid var(--line);}
+.rmeta b{color:var(--ink);}
+.rso{flex:1;min-width:0;max-width:62%;background:var(--bg);border:1px solid var(--line2);border-radius:3px;padding:.18rem .35rem;font-size:.8rem;cursor:pointer;}
+.rso:hover{border-color:var(--ink-faint);}
+.rnone{font-style:italic;color:var(--ink-faint);font-size:.76rem;}
+.rgroup{margin-top:.6rem;}
+.rglbl{font-family:'Share Tech Mono',monospace;font-size:.64rem;letter-spacing:.14em;margin-bottom:.3rem;}
+.rglbl.in{color:var(--vin-bright);}
+.rglbl.out{color:var(--contest);}
+.rmem{display:flex;align-items:center;gap:.45rem;padding:.24rem .35rem;border-radius:3px;border:1px solid transparent;}
+.rmem:nth-child(even){background:rgba(255,255,255,.02);}
+.rmem.me{border-color:var(--contest-deep);background:rgba(217,154,61,.12);}
+.rface{width:22px;height:22px;border-radius:3px;image-rendering:pixelated;flex:none;}
+.rname{flex:1;font-size:.88rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rname em{font-style:normal;color:var(--contest);font-size:.72rem;}
+.rbtn{font-size:.68rem;padding:.1rem .42rem;}
+.rempty{font-size:.78rem;color:var(--ink-faint);font-style:italic;padding:.2rem .35rem;}
+.radd{display:flex;gap:.35rem;margin-top:.6rem;}
+.radd input{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line2);border-radius:3px;padding:.26rem .4rem;font-size:.85rem;}
+.rnote{font-size:.74rem;color:var(--ink-faint);font-style:italic;margin-top:.5rem;line-height:1.5;}
+.rstamp{font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--ink-faint);margin-top:.5rem;text-align:right;}
+
+/* auth modal */
+#authOverlay{position:fixed;inset:0;z-index:9000;background:rgba(5,8,12,.92);display:none;align-items:center;justify-content:center;padding:1rem;}
+#authOverlay.show{display:flex;}
+#authBox{background:var(--bg2);border:1px solid var(--line2);border-radius:6px;padding:1.2rem 1.4rem;width:100%;max-width:340px;display:grid;gap:.6rem;}
+#authBox h2{font-family:'Cinzel',serif;font-size:.85rem;letter-spacing:.14em;color:var(--ink-dim);font-weight:600;text-align:center;}
+#authBox input{background:var(--bg);border:1px solid var(--line2);border-radius:3px;padding:.4rem .55rem;font-size:.95rem;width:100%;}
+#authErr{color:#e79d97;font-size:.8rem;min-height:1.1em;text-align:center;}
+#authBox .note{font-size:.75rem;color:var(--ink-faint);text-align:center;font-style:italic;}
+
+@media(max-width:900px){ .trk-side{width:auto;font-size:.58rem;} #sidebar{position:absolute;z-index:20;height:100%;left:0;} }
+@media(max-height:620px){
+  .hdr-crests{display:none;}
+  header{padding:.25rem .7rem;}
+  #warTitle{font-size:1rem;}
+  #warSub{display:none;}
+  #tracker{padding:.3rem .8rem .25rem;}
+  .trk-side{font-size:.55rem;width:110px;}
+  .trk-side small{display:none;}
+  .trk-bar-wrap{height:34px;}
+  .trk-bar{inset:8px 0;}
+  .trk-status{margin-top:.1rem;font-size:.72rem;}
+  footer{display:none;}
+}
+
+/* ── card system: field manual + war deck ── */
+.fm-lead{font-size:.9rem;color:var(--ink-dim);line-height:1.55;margin-bottom:.7rem;}
+.fm-lead b{color:var(--ink);font-weight:600;}
+.fm-sec{font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.14em;color:var(--contest);text-transform:uppercase;margin:1.1rem 0 .5rem;padding-bottom:.25rem;border-bottom:1px solid var(--line);}
+.fm-step{display:flex;gap:.55rem;align-items:flex-start;padding:.5rem .1rem;}
+.fm-num{flex:none;width:22px;height:22px;border-radius:50%;background:var(--bg3);border:1px solid var(--line2);display:flex;align-items:center;justify-content:center;font-family:'Share Tech Mono',monospace;font-size:.78rem;color:var(--contest);}
+.fm-step .fmt{font-size:.86rem;color:var(--ink-dim);line-height:1.45;}
+.fm-step .fmt b{color:var(--ink);font-weight:600;}
+.wheel{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;justify-content:center;padding:.55rem;background:var(--bg3);border:1px solid var(--line);border-radius:5px;margin-bottom:.4rem;}
+.wchip{display:flex;align-items:center;gap:.35rem;font-size:.85rem;color:var(--ink);}
+.wdot{width:9px;height:9px;border-radius:2px;flex:none;}
+.warr{color:var(--ink-faint);font-size:.85rem;}
+.ccard{border:1px solid var(--line);border-left-width:3px;border-radius:4px;background:var(--bg3);padding:.45rem .6rem;margin-bottom:.4rem;}
+.ctop{display:flex;align-items:center;gap:.4rem;}
+.cname{font-weight:600;color:var(--ink);font-size:.9rem;}
+.cbadge{margin-left:auto;font-family:'Share Tech Mono',monospace;font-size:.7rem;color:var(--ink-dim);border:1px solid var(--line2);border-radius:10px;padding:.03rem .45rem;white-space:nowrap;}
+.cbank{font-family:'Share Tech Mono',monospace;font-size:.76rem;color:var(--vin-bright);margin-left:.3rem;}
+.ceff{font-size:.84rem;color:var(--ink-dim);line-height:1.4;margin-top:.25rem;}
+.cneed{font-size:.75rem;color:var(--ink-faint);margin-top:.2rem;}
+.brhead{display:flex;align-items:center;gap:.4rem;font-family:'Cinzel',serif;font-size:.76rem;letter-spacing:.06em;color:var(--ink);margin:.7rem 0 .35rem;}
+.brhead .bdot{width:11px;height:11px;border-radius:2px;flex:none;}
+.brhead .bblurb{font-family:'Crimson Text',serif;font-size:.76rem;letter-spacing:0;color:var(--ink-faint);font-style:italic;}
+.deck-tools{display:flex;gap:.4rem;margin-bottom:.6rem;flex-wrap:wrap;}
+.deck-edit{border:1px solid var(--line2);border-radius:5px;background:var(--bg2);padding:.55rem;margin-bottom:.5rem;display:grid;gap:.4rem;}
+.deck-edit input,.deck-edit select,.deck-edit textarea{background:var(--bg);border:1px solid var(--line2);border-radius:3px;padding:.28rem .4rem;font-size:.85rem;width:100%;}
+.deck-grid2{display:grid;grid-template-columns:1fr 1fr;gap:.4rem;}
+.deck-row-btns{display:flex;gap:.35rem;justify-content:flex-end;}
+/* ── in-roster draft (battle orders) ── */
+.ords{margin-top:.55rem;padding-top:.5rem;border-top:1px solid var(--line);}
+.ordhd{display:flex;justify-content:space-between;align-items:center;font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.12em;color:var(--ink-dim);margin-bottom:.35rem;}
+.ordcp{font-family:'Share Tech Mono',monospace;color:var(--contest);letter-spacing:0;}
+.ordsealed{font-family:'Share Tech Mono',monospace;font-size:.66rem;letter-spacing:.1em;color:var(--vin-bright);}
+.ochips{display:flex;flex-wrap:wrap;gap:.3rem;}
+.ochip{display:inline-flex;align-items:center;gap:.25rem;font-size:.78rem;color:var(--ink);background:var(--bg2);border:1px solid var(--line2);border-radius:12px;padding:.12rem .5rem;}
+.odot{width:8px;height:8px;border-radius:2px;flex:none;}
+.ocost{font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--ink-dim);}
+.obank{font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--vin-bright);}
+.ox{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:.78rem;padding:0 0 0 .1rem;line-height:1;}
+.ox:hover{color:var(--danger);}
+.ordbtns{display:flex;gap:.35rem;align-items:center;margin-top:.45rem;flex-wrap:wrap;}
+.ordface{display:flex;gap:.2rem;flex-wrap:wrap;}
+.ofd{font-size:1.15rem;color:var(--ink-faint);line-height:1;}
+.picker{margin-top:.5rem;border:1px solid var(--line2);border-radius:5px;background:var(--bg);padding:.5rem;}
+.pickhd{display:flex;justify-content:space-between;align-items:center;font-size:.78rem;color:var(--ink-dim);margin-bottom:.4rem;}
+.pgrid{display:flex;flex-direction:column;gap:.3rem;max-height:260px;overflow-y:auto;}
+.pcard{display:flex;flex-direction:column;gap:.15rem;text-align:left;background:var(--bg3);border:1px solid var(--line);border-left-width:3px;border-radius:4px;padding:.35rem .5rem;cursor:pointer;color:var(--ink);}
+.pcard:hover:not(:disabled){border-color:var(--line2);background:var(--bg2);}
+.pcard:disabled{opacity:.45;cursor:not-allowed;}
+.ptop{display:flex;align-items:center;gap:.35rem;}
+.pname{font-weight:600;font-size:.82rem;flex:1;}
+.peff{font-size:.75rem;color:var(--ink-dim);line-height:1.35;}
+.pneed{font-size:.7rem;color:var(--ink-faint);}
+.pneed.bad{color:var(--contest);}
+/* ── battle conditions (grants) on the schedule form ── */
+.bf-grants{border:1px solid var(--line2);border-radius:4px;background:var(--bg);padding:.45rem .55rem;display:flex;flex-direction:column;gap:.15rem;}
+.bf-ghd{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.1em;color:var(--contest);margin-bottom:.2rem;}
+.bf-grow{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;margin-top:.25rem;}
+.bf-glbl{font-size:.82rem;color:var(--ink);min-width:88px;}
+.bf-grow label{display:inline-flex;align-items:center;gap:.25rem;font-size:.8rem;color:var(--ink-dim);cursor:pointer;}
+.bf-grow input[type=checkbox]{width:auto;}
+.bf-grow select{width:auto;flex:1;min-width:110px;}
+.bf-gnote{font-size:.72rem;color:var(--ink-faint);line-height:1.35;font-style:italic;}
+/* ── conclude: held time + resolution ── */
+.brtime{display:flex;gap:.5rem;margin:.35rem 0 .5rem;}
+.brtime label{flex:1;display:flex;flex-direction:column;gap:.15rem;font-size:.72rem;letter-spacing:.1em;font-family:'Cinzel',serif;}
+.brtime label.lech{color:var(--lech-bright);}
+.brtime label.vin{color:var(--vin-bright);}
+.brheld{background:var(--bg);border:1px solid var(--line2);border-radius:3px;padding:.28rem .4rem;font-size:1rem;font-family:'Share Tech Mono',monospace;color:var(--ink);width:100%;}
+.brsides{display:flex;gap:.5rem;}
+.brside{flex:1;border:1px solid var(--line);border-radius:4px;padding:.4rem .5rem;background:var(--bg3);}
+.brside.lech{border-left:3px solid var(--lech);}
+.brside.vin{border-left:3px solid var(--vin);}
+.brline{display:flex;justify-content:space-between;gap:.5rem;font-size:.76rem;color:var(--ink-dim);padding:.08rem 0;}
+.brline span:last-child{font-family:'Share Tech Mono',monospace;flex:none;}
+.brline.hd{font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.08em;color:var(--ink);border-bottom:1px solid var(--line);padding-bottom:.2rem;margin-bottom:.2rem;}
+.brline.sub em{color:var(--ink-faint);font-size:.7rem;}
+.brline.sub.dead span{color:var(--ink-faint);text-decoration:line-through;}
+.brline.tot{border-top:1px solid var(--line);margin-top:.2rem;padding-top:.2rem;color:var(--ink);}
+.brfinal{margin-top:.5rem;padding:.4rem .5rem;border-radius:4px;text-align:center;font-family:'Cinzel',serif;font-size:.8rem;letter-spacing:.04em;background:var(--bg2);border:1px solid var(--line2);}
+.brfinal.lech{color:var(--lech-bright);border-color:var(--lech-deep);}
+.brfinal.vindex{color:var(--vin-bright);border-color:var(--vin-deep);}
+.brfinal.stalemate{color:var(--contest);border-color:var(--contest-deep);}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <a class="btn" id="btnVintranet" href="index.html" title="Back to the Vintranet">← Vintranet</a>
+    <div class="hdr-crests">
+      <button type="button" class="crest l" data-crest="lech" title="Who leads the Empire of Lech">
+        <span class="crest-img" data-src="lechflag.png,lechcoa.png"></span>
+        <span class="crest-name">EMPIRE OF LECH</span>
+      </button>
+      <span class="x">⚔</span>
+      <button type="button" class="crest v" data-crest="vindex" title="Who leads the Republic of Vindex">
+        <span class="crest-img" data-src="vindexflag.png,vindexcoa.png"></span>
+        <span class="crest-name">REPUBLIC OF VINDEX</span>
+      </button>
+    </div>
+    <div id="warTitleWrap">
+      <div id="warTitle" spellcheck="false"></div><br/>
+      <div id="warSub" spellcheck="false"></div>
+    </div>
+    <div class="hdr-actions">
+      <span id="userBox"></span>
+      <button class="btn" id="btnExport" title="Download the war state as JSON">Export</button>
+      <button class="btn danger" id="btnReset" style="display:none" title="Erase the shared war record (administrators only)">Reset War</button>
+    </div>
+  </header>
+
+  <section id="nextBattle" hidden></section>
+
+  <section id="tracker">
+    <div class="trk-row">
+      <div class="trk-side vin">REPUBLIC OF<br/>VINDEX NATION<small id="vinWins"></small></div>
+      <div class="trk-bar-wrap">
+        <div class="trk-bar" id="trkBar">
+          <div class="trk-fill" id="trkFill"></div>
+          <div class="trk-center"></div>
+        </div>
+        <div class="trk-needle" id="trkNeedle"><div class="trk-score mono" id="trkScore">0</div></div>
+      </div>
+      <div class="trk-side lech">EMPIRE<br/>OF LECH<small id="lechWins"></small></div>
+    </div>
+    <div class="trk-status">
+      <span id="trkStatusMain">THE GUNS ARE SILENT</span>
+      <span id="trkMomentum"></span>
+      <span class="trk-thr">victory at ±<input type="number" id="threshold" min="3" max="50" step="1" disabled/></span>
+    </div>
+    <div class="trk-obj">
+      <div class="obj vin" id="objVin"></div>
+      <div class="obj lech" id="objLech"></div>
+    </div>
+  </section>
+
+  <main>
+    <aside id="sidebar">
+      <div class="tabs">
+        <div class="tab active" data-tab="territories">TERRITORIES</div>
+        <div class="tab" data-tab="battles">BATTLE LOG</div>
+        <div class="tab" data-tab="manual">MANUAL</div>
+        <div class="tab" id="tabDeck" data-tab="deck" style="display:none">WAR DECK</div>
+      </div>
+      <div class="panel active" id="panel-territories"></div>
+      <div class="panel" id="panel-battles">
+        <form id="battleForm" style="display:none">
+          <h3 id="bfTitle">RECORD A BATTLE</h3>
+          <input type="text" id="bfName" placeholder="Battle name (e.g. Battle of the Viridian Gap)" required/>
+          <div class="bf-grid">
+            <input type="date" id="bfDate"/>
+            <select id="bfWorld"></select>
+          </div>
+          <div class="bf-grid">
+            <input type="time" id="bfTime" title="Start time"/>
+            <select id="bfTz" title="Timezone"></select>
+          </div>
+          <input type="text" id="bfLocation" placeholder="Location / front"/>
+          <div class="bf-grants">
+            <div class="bf-ghd">BATTLE CONDITIONS — what each side can bring (unlocks order cards)</div>
+            <div class="bf-grow"><span class="bf-glbl">Naval access</span>
+              <label><input type="checkbox" id="bgNavalL"/> Lech</label>
+              <label><input type="checkbox" id="bgNavalV"/> Vindex</label></div>
+            <div class="bf-gnote">This side can bring warships or coastal guns to bear on the point. Unlocks their naval cards.</div>
+            <div class="bf-grow"><span class="bf-glbl">Air access</span>
+              <label><input type="checkbox" id="bgAirL"/> Lech</label>
+              <label><input type="checkbox" id="bgAirV"/> Vindex</label></div>
+            <div class="bf-gnote">This side can fly sorties over the point from an airfield or carrier in reach. Unlocks their air cards.</div>
+            <div class="bf-grow"><span class="bf-glbl">Defending</span>
+              <select id="bgDefender"><option value="">Neither</option><option value="lech">Lech</option><option value="vindex">Vindex</option></select></div>
+            <div class="bf-gnote">The side dug in holding the point while the other attacks it. Unlocks the defensive cards — entrenchment, ambush, last stand.</div>
+          </div>
+          <textarea id="bfNotes" placeholder="Notes (optional)"></textarea>
+          <div class="bf-hint">The result is recorded when the battle is concluded, not now.</div>
+          <div class="tcard-btns">
+            <button type="button" class="btn" id="bfCancel" style="display:none">Cancel</button>
+            <button type="submit" class="btn primary" id="bfSubmit">Add Battle</button>
+          </div>
+        </form>
+        <div id="battleNote" class="empty-note" style="display:none">Battles are recorded by network administrators once each engagement is adjudicated.</div>
+        <div id="battleList"></div>
+      </div>
+      <div class="panel" id="panel-manual"></div>
+      <div class="panel" id="panel-deck"></div>
+    </aside>
+
+    <div id="mapArea">
+      <div id="toolbar">
+        <button class="btn" id="btnSidebar" title="Toggle sidebar">☰</button>
+        <div class="sep"></div>
+        <span id="theatreTabs"></span>
+        <div class="sep" id="sepTheatre"></div>
+        <button class="btn active" id="modeSelect" title="Select territories, drag to pan">Select / Pan</button>
+        <button class="btn" id="modeDraw" style="display:none" title="Draw a new border polygon">✎ Draw Border</button>
+        <button class="btn primary" id="btnFinish" style="display:none">Finish ✓</button>
+        <button class="btn" id="btnCancelDraw" style="display:none">Cancel</button>
+        <div class="sep"></div>
+        <button class="btn" id="btnZoomOut">−</button>
+        <button class="btn" id="btnZoomIn">+</button>
+        <button class="btn" id="btnFit">Fit</button>
+        <div class="sep"></div>
+        <label>fill <input type="range" id="opacity" min="0" max="100" value="55"/></label>
+        <button class="btn" id="btnMapUrl" style="display:none" title="Change this theatre's map image URL">Map URL…</button>
+      </div>
+      <div id="viewport">
+        <div id="world">
+          <img id="mapImg" alt=""/>
+          <svg id="overlay" xmlns="http://www.w3.org/2000/svg">
+            <defs id="svgDefs"></defs>
+            <g id="gTerr"></g>
+            <g id="gDraw"></g>
+            <g id="gHandles"></g>
+          </svg>
+        </div>
+        <div id="mapNote"><div class="big" id="mapNoteBig"></div><div id="mapNoteSmall"></div></div>
+        <div id="legend"></div>
+        <div id="drawTip"></div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <span id="hint">Connecting to the war record…</span>
+    <span class="mono" id="saveState"></span>
+  </footer>
+</div>
+
+<div id="authOverlay">
+  <div id="authBox">
+    <h2>IMPERIAL NETWORK — SIGN IN</h2>
+    <input type="text" id="authUser" placeholder="Username" autocomplete="username"/>
+    <input type="password" id="authPass" placeholder="Password" autocomplete="current-password"/>
+    <div id="authErr"></div>
+    <div class="tcard-btns">
+      <button type="button" class="btn" id="authCancel">Cancel</button>
+      <button type="button" class="btn primary" id="authGo">Sign In</button>
+    </div>
+    <div class="note">One account for the whole network — register on the Vintranet.</div>
+  </div>
+</div>
+
+<div id="leadersOverlay"><div id="leadersBox"></div></div>
+
+<div id="rosterOverlay"><div id="rosterBox"></div></div>
+<datalist id="accountNames"></datalist>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ══════════════════════════════════════════════════════
+   War Room — Lech ⚔ Vindex
+   Backed by the shared network backend (MongoDB on Render).
+   Territories and battles are per-record collections
+   (lvwar_territories / lvwar_battles); war configuration is
+   the lvwar_meta singleton. Reads are public — anyone may
+   watch. Writes are authorised server-side: the map needs
+   War Office or Vindex Department of Defense authority;
+   battles and configuration are network administrators'.
+   ══════════════════════════════════════════════════════ */
+
+const API = "https://lech-backend.onrender.com";
+const SESSION_KEY = "lech_session", SESSION_ACC_KEY = "lech_session_acc";
+const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const STATUS = {
+  lech:        { label: 'Lech territory',        short: 'LECH',           fill: 'rgba(177,60,60,.85)',   stroke: '#e08b8b' },
+  vindex:      { label: 'Vindex territory',      short: 'VINDEX',         fill: 'rgba(43,122,75,.85)',   stroke: '#57c084' },
+  wilden:      { label: 'Wilden territory',      short: 'WILDEN',         fill: 'rgba(139,146,155,.85)', stroke: '#c4cad2' },
+  'lech-occ':  { label: 'Occupied by Lech',      short: 'OCC. BY LECH',   fill: 'url(#pat-lech-occ)',    stroke: '#e08b8b', dashed: true },
+  'vindex-occ':{ label: 'Occupied by Vindex',    short: 'OCC. BY VINDEX', fill: 'url(#pat-vindex-occ)',  stroke: '#57c084', dashed: true },
+  'wilden-occ':{ label: 'Occupied by Wilden',    short: 'OCC. BY WILDEN', fill: 'url(#pat-wilden-occ)',  stroke: '#c4cad2', dashed: true },
+  contested:   { label: 'Contested / frontline', short: 'CONTESTED',      fill: 'url(#pat-contested)',   stroke: '#ffb35c', dashed: true },
+};
+
+const DEFAULT_META = {
+  warName: 'The Lech–Vindex War',
+  warSub: 'Theatres of San Amaro & Viridis',
+  threshold: 10,
+  theatres: [
+    { id: 'sanamaro', name: 'San Amaro', map: 'SanAmaroMap.png' },
+    { id: 'viridis',  name: 'Viridis',   map: 'ViridisMap.png' },   // not drawn yet — shows "not found" until the file lands
+  ],
+  // Which theatre the war room is centred on. The administrator sets it and
+  // everyone follows: a spectator simply sees the live front, with no theatre
+  // switcher to wander off into.
+  activeTheatreId: 'sanamaro',
+  // Standing orders. Set by hand from the tracker — the war is adjudicated by a
+  // person, not by polygon adjacency, so the orders say whatever the
+  // administrator means them to say.
+  objectives: {
+    lech:   { mode: '', target: '' },
+    vindex: { mode: '', target: '' },
+  },
+  // The next scheduled engagement. `date` and `time` are wall-clock in `tz`
+  // (an IANA zone), so the banner can render the same instant correctly for a
+  // viewer sitting in any timezone.
+  nextBattle: { name: '', date: '', time: '', tz: '', note: '' },
+};
+
+/* The orders an administrator may issue. Empty = nothing standing. */
+const OBJ_MODES = {
+  ATTACK:  { cls: 'attack', icon: '⚔', label: 'ATTACK' },
+  DEFEND:  { cls: 'defend', icon: '🛡', label: 'DEFEND' },
+  HOLD:    { cls: 'hold',   icon: '',  label: 'HOLD THE LINE' },
+  ADVANCE: { cls: 'attack', icon: '⚔', label: 'ADVANCE ON' },
+  RAID:    { cls: 'attack', icon: '⚔', label: 'RAID' },
+  WON:     { cls: 'win',    icon: '⚑', label: 'VICTORIOUS' },
+  LOST:    { cls: 'lost',   icon: '✖', label: 'DEFEATED' },
+};
+
+let meta = JSON.parse(JSON.stringify(DEFAULT_META));
+let territories = [];   // records from lvwar_territories
+let battles = [];       // records from lvwar_battles, sorted by .at
+let rosters = {};       // records from lvwar_rosters, keyed roster_<battleId>_<side>
+let warCards = {};      // lvwar_cards singleton — the admin-curated order catalogue
+let serviceRecords = {};// vx_dod_personnel / mow_personnel — who holds a commission
+let account = null;     // signed-in account (null = spectator)
+let vxGov = {};         // vx_gov singleton (cabinet posts) — SecDef check
+let bkOfficials = {};   // bk_officials singleton — Chancellor / Minister of War
+let accountsDir = {};   // mi_accounts, for attribution + leadership strip
+let canTerritory = false, canBattles = false, canMeta = false;
+
+let selectedId = null;
+let mode = 'select';
+let drawPts = [];
+let editingBattleId = null;
+let theatreIdx = 0;
+let views = {};           // theatre id -> {x,y,s}
+let view = { x: 0, y: 0, s: 1 };
+let mapW = 0, mapH = 0;
+let pendingSaves = 0;
+let loadedOnce = false;
+
+/* ── element refs ── */
+const $ = id => document.getElementById(id);
+const viewport = $('viewport'), world = $('world'), mapImg = $('mapImg'), overlay = $('overlay');
+const gTerr = $('gTerr'), gDraw = $('gDraw'), gHandles = $('gHandles'), svgDefs = $('svgDefs');
+
+/* ══════════ BACKEND ══════════ */
+let token = ""; try { token = localStorage.getItem(SESSION_KEY) || ""; } catch (e) { token = ""; }
+try { account = JSON.parse(localStorage.getItem(SESSION_ACC_KEY) || "null"); } catch { account = null; }
+
+function saveSession(t, acc) {
+  token = t; account = acc;
+  localStorage.setItem(SESSION_KEY, t);
+  localStorage.setItem(SESSION_ACC_KEY, JSON.stringify(acc));
+}
+function clearSession() {
+  token = ""; account = null;
+  localStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(SESSION_ACC_KEY);
+}
+async function jpost(path, body) {
+  try {
+    const r = await fetch(API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    return await r.json();
+  } catch (e) { return { ok: false, error: 'Network error — backend unreachable.' }; }
+}
+const slogin  = (username, password) => jpost('/api/login', { username, password });
+const slogout = () => jpost('/api/logout', { token });
+const sset    = (key, value) => jpost('/api/set', { token, key, value });
+const sdel    = (key) => jpost('/api/unset', { token, key });
+const saveRecord   = (collection, record) => jpost('/api/write', { token, collection, record });
+const deleteRecord = (collection, id) => jpost('/api/delete', { token, collection, id });
+async function sme() {
+  try {
+    const r = await fetch(API + '/api/me?token=' + encodeURIComponent(token));
+    return await r.json();
+  } catch (e) { return { ok: false, error: 'network' }; }
+}
+async function sgetAll() {
+  try {
+    const r = await fetch(API + '/api/data' + (token ? '?token=' + encodeURIComponent(token) : ''));
+    return await r.json();
+  } catch (e) { return { ok: false, error: 'Network error — backend unreachable.' }; }
+}
+
+/* ── permissions (cosmetic; the server re-checks every write) ── */
+function isSysAdminA(a) { return !!a && (a.role === 'emperor' || a.sysAdmin === true); }
+function hasWarA(a) { return !!a && (a.role === 'emperor' || a.mowRole === 'commander' || a.mowRole === 'minister'); }
+function isVxSecDef(a) {
+  if (!a || String(a.vxRole || '') !== 'cabinet') return false;
+  const post = ((vxGov && vxGov.cabinet) || {})[String(a.username || '').toLowerCase()];
+  return /^secretary of defen[cs]e$/i.test(String(post || '').trim());
+}
+function refreshPerms() {
+  canBattles = isSysAdminA(account);
+  canMeta = isSysAdminA(account);
+  canTerritory = canBattles || hasWarA(account) || isVxSecDef(account);
+
+  $('modeDraw').style.display = canTerritory ? '' : 'none';
+  $('battleForm').style.display = canBattles ? '' : 'none';
+  $('battleNote').style.display = canBattles ? 'none' : '';
+  $('btnReset').style.display = canMeta ? '' : 'none';
+  $('btnMapUrl').style.display = canMeta ? '' : 'none';
+  $('threshold').disabled = !canMeta;
+  $('warTitle').contentEditable = canMeta ? 'true' : 'false';
+  $('warSub').contentEditable = canMeta ? 'true' : 'false';
+  applySidebarVisibility();
+  renderUserBox();
+  renderTheatreTabs();
+  renderObjectives();
+  renderBattleBar();
+  // The battle cards carry the administrator's controls, so they have to be
+  // rebuilt whenever authority changes — otherwise a session restored a moment
+  // after the first paint leaves the log looking read-only.
+  if (loadedOnce) renderBattles();
+  updateHint();
+}
+// The territory register is the administrator's own working view of the war —
+// the roster of every zone and its owner. The public sidebar carries the battle
+// log alone. (The map itself stays public; it is the *list* that is private.)
+function applySidebarVisibility() {
+  const tab = document.querySelector('.tab[data-tab="territories"]');
+  const panel = $('panel-territories');
+  if (tab) tab.style.display = canMeta ? '' : 'none';
+  if (panel) panel.style.display = canMeta ? '' : 'none';
+  if (!canMeta && tab && tab.classList.contains('active')) switchTab('battles');
+  const dtab = $('tabDeck');
+  if (dtab) dtab.style.display = canMeta ? '' : 'none';
+  if (!canMeta && dtab && dtab.classList.contains('active')) switchTab('battles');
+}
+function officeLabel() {
+  if (!account) return '';
+  if (account.role === 'emperor') return 'NETWORK OWNER';
+  if (account.sysAdmin === true) return 'NETWORK ADMINISTRATOR';
+  if (hasWarA(account)) return 'WAR OFFICE';
+  if (isVxSecDef(account)) return 'SECRETARY OF DEFENSE';
+  return 'SPECTATOR';
+}
+function renderUserBox() {
+  const box = $('userBox');
+  if (!account) {
+    box.innerHTML = `<span class="spectator">SPECTATOR — READ ONLY</span> <button class="btn" id="btnSignIn">Sign In</button>`;
+    $('btnSignIn').addEventListener('click', openAuth);
+  } else {
+    const name = esc(account.displayName || account.username);
+    const face = esc(account.mcName || account.username || '');
+    box.innerHTML = `<img src="https://mc-heads.net/avatar/${face}/22" alt=""/>
+      <span>${name}</span> <span id="userOffice">${officeLabel()}</span>
+      <button class="btn" id="btnSignOut">Sign Out</button>`;
+    $('btnSignOut').addEventListener('click', async () => {
+      await slogout(); clearSession(); refreshPerms();
+      if (mode === 'draw') cancelDraw();
+      selectTerritory(null); renderAll();
+      toast('Signed out — spectator mode.');
+    });
+  }
+}
+
+/* ── auth modal ── */
+function openAuth() {
+  $('authErr').textContent = '';
+  $('authOverlay').classList.add('show');
+  $('authUser').focus();
+}
+function closeAuth() { $('authOverlay').classList.remove('show'); $('authPass').value = ''; }
+$('authCancel').addEventListener('click', closeAuth);
+$('authOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeAuth(); });
+async function doAuth() {
+  const u = $('authUser').value.trim(), p = $('authPass').value;
+  if (!u || !p) { $('authErr').textContent = 'Enter your credentials.'; return; }
+  $('authGo').disabled = true;
+  const res = await slogin(u, p);
+  $('authGo').disabled = false;
+  if (!res.ok) { $('authErr').textContent = res.error || 'Sign-in failed.'; return; }
+  saveSession(res.token, res.account);
+  closeAuth();
+  refreshPerms();
+  toast(`Signed in as ${res.account.displayName || res.account.username} — ${officeLabel()}.`);
+  loadAll();
+}
+$('authGo').addEventListener('click', doAuth);
+$('authPass').addEventListener('keydown', e => { if (e.key === 'Enter') doAuth(); });
+$('authUser').addEventListener('keydown', e => { if (e.key === 'Enter') $('authPass').focus(); });
+
+/* ── save-state indicator ── */
+function noteSaving() { pendingSaves++; $('saveState').textContent = 'saving…'; }
+function noteSaved(ok, err) {
+  pendingSaves = Math.max(0, pendingSaves - 1);
+  if (!ok) { $('saveState').textContent = 'save failed'; toast(err || 'Save failed.'); return; }
+  if (pendingSaves === 0) $('saveState').textContent = 'saved ' + new Date().toLocaleTimeString();
+}
+
+/* ── persistence ── */
+async function persistTerritory(t) {
+  noteSaving();
+  const res = await saveRecord('lvwar_territories', t);
+  noteSaved(res.ok, res.error);
+}
+const terrSaveTimers = {};
+function persistTerritoryDebounced(t) {
+  clearTimeout(terrSaveTimers[t.id]);
+  terrSaveTimers[t.id] = setTimeout(() => { delete terrSaveTimers[t.id]; persistTerritory(t); }, 600);
+}
+async function persistBattle(b) {
+  noteSaving();
+  const res = await saveRecord('lvwar_battles', b);
+  noteSaved(res.ok, res.error);
+}
+let metaTimer = null;
+function persistMetaDebounced() {
+  clearTimeout(metaTimer);
+  metaTimer = setTimeout(async () => {
+    metaTimer = null;
+    noteSaving();
+    const res = await sset('lvwar_meta', meta);
+    noteSaved(res.ok, res.error);
+  }, 600);
+}
+
+/* ── toast ── */
+let toastTimer = null;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+/* ══════════ LOAD & POLL ══════════ */
+function busyEditing() {
+  if (pendingSaves > 0 || metaTimer || Object.keys(terrSaveTimers).length) return true;
+  if (drawPts.length || vertexDrag || editingBattleId) return true;
+  const ae = document.activeElement;
+  if (ae && ae.isContentEditable) return true;
+  // The objective and next-battle controls live in the tracker and the banner,
+  // not the sidebar — a poll landing mid-edit would otherwise repaint them out
+  // from under the administrator's cursor.
+  return !!(ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName) &&
+    ae.closest('#sidebar,#tracker,#nextBattle,#rosterOverlay'));
+}
+async function loadAll() {
+  const res = await sgetAll();
+  if (!res.ok) {
+    $('saveState').textContent = 'backend unreachable';
+    if (!loadedOnce) { $('hint').textContent = 'Backend unreachable — retrying… (free hosting can take ~1 min to wake)'; setTimeout(loadAll, 8000); }
+    return;
+  }
+  const raw = res.data || {};
+  vxGov = raw.vx_gov || {};
+  bkOfficials = raw.bk_officials || {};
+  accountsDir = raw.mi_accounts || {};
+  if (!busyEditing()) {
+    const m = raw.lvwar_meta;
+    meta = m && typeof m === 'object'
+      ? { ...JSON.parse(JSON.stringify(DEFAULT_META)), ...m }
+      : JSON.parse(JSON.stringify(DEFAULT_META));
+    if (!Array.isArray(meta.theatres) || !meta.theatres.length) meta.theatres = JSON.parse(JSON.stringify(DEFAULT_META.theatres));
+    theatreIdx = clamp(theatreIdx, 0, meta.theatres.length - 1);
+    const wantIdx = theatreIndexFromMeta();
+    territories = Object.values(raw.lvwar_territories || {}).filter(t => t && Array.isArray(t.points));
+    // Every battle, not only the decided ones — a scheduled or live battle has no
+    // victor yet but must still appear. Only concluded ones move the tracker.
+    battles = Object.values(raw.lvwar_battles || {}).filter(b => b && b.id).sort((a, b) => (a.at || 0) - (b.at || 0));
+    rosters = raw.lvwar_rosters || {};
+    warCards = (raw.lvwar_cards && typeof raw.lvwar_cards === 'object') ? raw.lvwar_cards : {};
+    // Each nation's own service record, read straight from its defence site, so
+    // the appointable officers here are always the ones actually commissioned.
+    serviceRecords = { vx_dod_personnel: raw.vx_dod_personnel || {},
+                       mow_personnel: raw.mow_personnel || {} };
+    if (selectedId && !territories.some(t => t.id === selectedId)) selectedId = null;
+    renderAll();
+    // Follow the administrator: whichever theatre the record names is the one
+    // every viewer is looking at, on first load and on every poll after.
+    if (!loadedOnce) { loadedOnce = true; loadTheatre(wantIdx); }
+    else if (wantIdx !== theatreIdx) loadTheatre(wantIdx);
+    updateHint();
+  }
+  refreshPerms();
+}
+// A live battle needs a much tighter refresh than the map does — somebody is
+// standing at a base waiting to be tapped in, and 25 seconds is far too long to
+// find out. The clock runs every 5s and simply skips most ticks when nothing is
+// being fought.
+let lastPoll = 0;
+setInterval(() => {
+  if (document.visibilityState !== 'visible' || !loadedOnce || busyEditing()) return;
+  const every = liveBattle() ? 5000 : 25000;
+  if (Date.now() - lastPoll < every) return;
+  lastPoll = Date.now();
+  loadAll();
+}, 5000);
+
+/* ══════════ THEATRES & MAP ══════════ */
+function activeTheatre() { return meta.theatres[theatreIdx] || meta.theatres[0]; }
+// The theatre the war record says is live, as an index into meta.theatres.
+function theatreIndexFromMeta() {
+  const i = meta.theatres.findIndex(t => t.id === meta.activeTheatreId);
+  return i >= 0 ? i : 0;
+}
+// Only the administrator gets a control, and choosing one moves the whole war
+// room for everybody. Spectators get nothing here at all — the map they are
+// shown IS the front, so there is nothing to choose.
+function renderTheatreTabs() {
+  const host = $('theatreTabs'), sep = $('sepTheatre');
+  if (!canMeta) {
+    host.innerHTML = '';
+    if (sep) sep.style.display = 'none';
+    return;
+  }
+  if (sep) sep.style.display = '';
+  host.innerHTML = `<label>theatre
+    <select id="theatreSel">${meta.theatres.map((t, i) =>
+      `<option value="${i}"${i === theatreIdx ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select>
+  </label>`;
+  $('theatreSel').addEventListener('change', e => setActiveTheatre(+e.target.value));
+}
+// An administrator moving the front. Recorded on the war meta so every viewer
+// follows on their next poll.
+function setActiveTheatre(i) {
+  if (!canMeta) return;
+  const idx = clamp(i, 0, meta.theatres.length - 1);
+  const th = meta.theatres[idx];
+  if (!th) return;
+  meta.activeTheatreId = th.id;
+  persistMetaDebounced();
+  loadTheatre(idx);
+  toast('The war room is now centred on ' + th.name + '.');
+}
+function loadTheatre(i) {
+  if (mode === 'draw') cancelDraw();
+  if (mapW && meta.theatres[theatreIdx]) views[meta.theatres[theatreIdx].id] = { ...view };
+  theatreIdx = clamp(i, 0, meta.theatres.length - 1);
+  selectedId = null;
+  const th = activeTheatre();
+  mapW = 0; mapH = 0;
+  $('mapNote').style.display = 'flex';
+  if (!th.map) {
+    mapImg.removeAttribute('src');
+    $('mapNoteBig').textContent = 'NO THEATRE MAP SET';
+    $('mapNoteSmall').textContent = canMeta
+      ? 'Place the ' + th.name + ' map PNG beside war.html (or host it anywhere) and set its URL with “Map URL…” above.'
+      : 'A network administrator has not yet set the ' + th.name + ' theatre map.';
+    renderTheatreTabs(); renderTerritories(); renderMap();
+    return;
+  }
+  $('mapNoteBig').textContent = 'LOADING THEATRE MAP…';
+  $('mapNoteSmall').textContent = th.map;
+  mapImg.onload = () => {
+    mapW = mapImg.naturalWidth; mapH = mapImg.naturalHeight;
+    overlay.setAttribute('width', mapW);
+    overlay.setAttribute('height', mapH);
+    overlay.setAttribute('viewBox', `0 0 ${mapW} ${mapH}`);
+    $('mapNote').style.display = 'none';
+    buildPatterns();
+    const saved = views[th.id];
+    if (saved) { view = { ...saved }; applyView(); renderMap(); } else fitMap();
+  };
+  mapImg.onerror = () => {
+    $('mapNoteBig').textContent = 'MAP IMAGE NOT FOUND';
+    $('mapNoteSmall').textContent = th.map + ' — check the file exists beside war.html' + (canMeta ? ', or set a new URL with “Map URL…”' : '');
+  };
+  mapImg.src = th.map;
+  renderTheatreTabs(); renderTerritories(); renderMap();
+}
+$('btnMapUrl').addEventListener('click', () => {
+  if (!canMeta) return;
+  const th = activeTheatre();
+  const url = prompt(`Map image URL for the ${th.name} theatre:`, th.map);
+  if (!url || url.trim() === th.map) return;
+  th.map = url.trim();
+  persistMetaDebounced();
+  loadTheatre(theatreIdx);
+});
+
+function buildPatterns() {
+  const u = Math.max(10, Math.round(mapW / 110));
+  const mk = (id, base, stripe, rot) =>
+    `<pattern id="${id}" patternUnits="userSpaceOnUse" width="${u}" height="${u}" patternTransform="rotate(${rot})">` +
+    `<rect width="${u}" height="${u}" fill="${base}"/>` +
+    `<rect width="${u/2}" height="${u}" fill="${stripe}"/></pattern>`;
+  svgDefs.innerHTML =
+    mk('pat-contested',  'rgba(217,154,61,.55)', 'rgba(138,90,29,.75)',  45) +
+    mk('pat-lech-occ',   'rgba(177,60,60,.50)',  'rgba(107,32,32,.80)', -45) +
+    mk('pat-vindex-occ', 'rgba(43,122,75,.50)',  'rgba(18,63,39,.80)',  -45) +
+    mk('pat-wilden-occ', 'rgba(139,146,155,.50)','rgba(76,82,90,.80)',  -45);
+}
+
+/* ══════════ VIEW (pan / zoom) ══════════ */
+function applyView() {
+  world.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.s})`;
+}
+function fitMap() {
+  if (!mapW) return;
+  const r = viewport.getBoundingClientRect();
+  view.s = Math.min(r.width / mapW, r.height / mapH) * 0.96;
+  view.x = (r.width - mapW * view.s) / 2;
+  view.y = (r.height - mapH * view.s) / 2;
+  applyView(); renderMap();
+}
+function zoomAt(cx, cy, factor) {
+  const r = viewport.getBoundingClientRect();
+  const mx = cx - r.left, my = cy - r.top;
+  const ns = clamp(view.s * factor, 0.02, 40);
+  const k = ns / view.s;
+  view.x = mx - (mx - view.x) * k;
+  view.y = my - (my - view.y) * k;
+  view.s = ns;
+  applyView();
+  requestAnimationFrame(renderMap);
+}
+function screenToImage(e) {
+  const r = viewport.getBoundingClientRect();
+  return { x: (e.clientX - r.left - view.x) / view.s, y: (e.clientY - r.top - view.y) / view.s };
+}
+function zoomToTerritory(t) {
+  if (!t.points.length) return;
+  const xs = t.points.map(p => p[0]), ys = t.points.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const r = viewport.getBoundingClientRect();
+  const pad = 1.35;
+  view.s = clamp(Math.min(r.width / ((x1 - x0) * pad || 1), r.height / ((y1 - y0) * pad || 1)), 0.02, 40);
+  view.x = r.width / 2 - (x0 + x1) / 2 * view.s;
+  view.y = r.height / 2 - (y0 + y1) / 2 * view.s;
+  applyView(); renderMap();
+}
+
+/* ══════════ GEOMETRY ══════════ */
+function centroid(pts) {
+  let a = 0, cx = 0, cy = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length];
+    const f = x1 * y2 - x2 * y1;
+    a += f; cx += (x1 + x2) * f; cy += (y1 + y2) * f;
+  }
+  if (Math.abs(a) < 1e-6) {
+    return [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length];
+  }
+  a *= 3;
+  return [cx / a, cy / a];
+}
+/* ══════════ RENDER: MAP OVERLAY ══════════ */
+const svgNS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs) {
+  const n = document.createElementNS(svgNS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  return n;
+}
+function visibleTerritories() {
+  const w = activeTheatre().name;
+  return territories.filter(t => (t.world || '') === w);
+}
+
+function renderMap() {
+  gTerr.innerHTML = ''; gHandles.innerHTML = '';
+  if (!mapW) { renderDrawLayer(); return; }
+  const op = $('opacity').value / 100;
+  const fs = Math.max(11 / view.s, mapW / 220);
+
+  for (const t of visibleTerritories()) {
+    if (t.points.length < 3) continue;
+    const st = STATUS[t.status] || STATUS.contested;
+    const ptsStr = t.points.map(p => p.join(',')).join(' ');
+    const g = el('g', { class: 'terr' });
+
+    const fill = el('polygon', { points: ptsStr, fill: st.fill, opacity: op, class: 'terr-fill', 'data-id': t.id });
+    fill.addEventListener('click', ev => {
+      if (mode === 'draw') return;
+      ev.stopPropagation();
+      if (dragMoved) return;
+      selectTerritory(t.id === selectedId ? null : t.id);
+    });
+    g.appendChild(fill);
+
+    const outline = el('polygon', {
+      points: ptsStr, fill: 'none', stroke: st.stroke,
+      'stroke-width': t.id === selectedId ? 3 : 1.8,
+      'vector-effect': 'non-scaling-stroke',
+      'stroke-dasharray': st.dashed ? '7 4' : 'none',
+      'pointer-events': 'none',
+      opacity: t.id === selectedId ? 1 : 0.9,
+    });
+    g.appendChild(outline);
+
+    const [cx, cy] = centroid(t.points);
+    const t1 = el('text', {
+      x: cx, y: cy, 'text-anchor': 'middle', fill: '#f2f5f8',
+      'font-size': fs, 'font-family': "'Cinzel',Georgia,serif", 'font-weight': '700',
+      'paint-order': 'stroke', stroke: 'rgba(0,0,0,.75)', 'stroke-width': fs / 6,
+      'pointer-events': 'none',
+    });
+    t1.textContent = t.name;
+    g.appendChild(t1);
+    const t2 = el('text', {
+      x: cx, y: cy + fs * 1.1, 'text-anchor': 'middle', fill: st.stroke,
+      'font-size': fs * 0.62, 'font-family': "'Share Tech Mono',monospace", 'letter-spacing': '.15em',
+      'paint-order': 'stroke', stroke: 'rgba(0,0,0,.75)', 'stroke-width': fs / 8,
+      'pointer-events': 'none',
+    });
+    t2.textContent = st.short;
+    g.appendChild(t2);
+
+    gTerr.appendChild(g);
+  }
+
+  renderHandles();
+  renderDrawLayer();
+}
+
+/* vertex handles for the selected territory (editors only) */
+function renderHandles() {
+  gHandles.innerHTML = '';
+  if (mode !== 'select' || !selectedId || !canTerritory) return;
+  const t = territories.find(x => x.id === selectedId);
+  if (!t) return;
+  const hr = 6 / view.s;
+
+  t.points.forEach((p, i) => {
+    const q = t.points[(i + 1) % t.points.length];
+    const mid = el('rect', {
+      x: (p[0] + q[0]) / 2 - hr * 0.6, y: (p[1] + q[1]) / 2 - hr * 0.6,
+      width: hr * 1.2, height: hr * 1.2,
+      fill: 'rgba(217,154,61,.9)', stroke: '#000', 'stroke-width': 1 / view.s,
+      class: 'handle', transform: `rotate(45 ${(p[0]+q[0])/2} ${(p[1]+q[1])/2})`,
+    });
+    mid.addEventListener('pointerdown', ev => {
+      ev.stopPropagation(); ev.preventDefault();
+      t.points.splice(i + 1, 0, [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]);
+      startVertexDrag(t, i + 1, ev);
+    });
+    gHandles.appendChild(mid);
+  });
+
+  t.points.forEach((p, i) => {
+    const c = el('circle', {
+      cx: p[0], cy: p[1], r: hr,
+      fill: '#f2f5f8', stroke: '#000', 'stroke-width': 1.2 / view.s, class: 'handle',
+    });
+    c.addEventListener('pointerdown', ev => { ev.stopPropagation(); ev.preventDefault(); startVertexDrag(t, i, ev); });
+    c.addEventListener('contextmenu', ev => {
+      ev.preventDefault(); ev.stopPropagation();
+      if (t.points.length <= 3) { toast('A border needs at least 3 points.'); return; }
+      t.points.splice(i, 1);
+      renderMap(); persistTerritory(t);
+    });
+    gHandles.appendChild(c);
+  });
+}
+
+let vertexDrag = null;
+function startVertexDrag(t, idx, ev) {
+  vertexDrag = { t, idx };
+  const move = e => {
+    const p = screenToImage(e);
+    t.points[idx] = [clamp(p.x, 0, mapW), clamp(p.y, 0, mapH)];
+    renderMap();
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    vertexDrag = null;
+    persistTerritory(t);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
+/* in-progress drawing */
+function renderDrawLayer() {
+  gDraw.innerHTML = '';
+  if (mode !== 'draw' || !drawPts.length) return;
+  const hr = 5 / view.s;
+  if (drawPts.length > 1) {
+    gDraw.appendChild(el('polyline', {
+      points: drawPts.map(p => p.join(',')).join(' '),
+      fill: 'rgba(217,154,61,.15)', stroke: '#ffb35c', 'stroke-width': 2,
+      'vector-effect': 'non-scaling-stroke', 'stroke-dasharray': '6 4',
+    }));
+  }
+  drawPts.forEach((p, i) => {
+    gDraw.appendChild(el('circle', {
+      cx: p[0], cy: p[1], r: i === 0 ? hr * 1.5 : hr,
+      fill: i === 0 ? '#ffb35c' : '#f2f5f8', stroke: '#000', 'stroke-width': 1 / view.s,
+    }));
+  });
+}
+
+/* ══════════ MODES / DRAW ══════════ */
+function updateHint() {
+  if (!loadedOnce) return;
+  if (mode === 'draw') {
+    $('hint').textContent = 'Click to place border points · click the first point or press Enter to close · Backspace = undo point · Esc = cancel';
+  } else if (canTerritory) {
+    $('hint').textContent = 'Click a territory to select · drag to pan · scroll to zoom · drag white handles to reshape · right-click a handle to delete it';
+  } else if (account) {
+    $('hint').textContent = 'Viewing the war record. Territory changes need War Office or Department of Defense authority.';
+  } else {
+    $('hint').textContent = 'Viewing the war record as a spectator — sign in to edit.';
+  }
+}
+function setMode(m) {
+  if (m === 'draw' && (!mapW || !canTerritory)) return;
+  mode = m;
+  if (m !== 'draw') { drawPts = []; }
+  $('modeSelect').classList.toggle('active', m === 'select');
+  $('modeDraw').classList.toggle('active', m === 'draw');
+  $('btnFinish').style.display = m === 'draw' ? '' : 'none';
+  $('btnCancelDraw').style.display = m === 'draw' ? '' : 'none';
+  viewport.classList.toggle('drawing', m === 'draw');
+  $('drawTip').style.display = m === 'draw' ? 'block' : 'none';
+  updateDrawTip();
+  updateHint();
+  renderMap();
+}
+function updateDrawTip() {
+  $('drawTip').textContent = drawPts.length
+    ? `${drawPts.length} point${drawPts.length > 1 ? 's' : ''} — ${drawPts.length >= 3 ? 'click first point / press Enter to close' : 'place at least 3 points'}`
+    : 'Click on the map to start tracing a border';
+}
+function finishDraw() {
+  if (drawPts.length < 3) { toast('Need at least 3 points to close a border.'); return; }
+  const t = {
+    id: 'terr_' + uid(),
+    name: 'New Territory ' + (territories.length + 1),
+    world: activeTheatre().name, status: 'contested', notes: '',
+    points: drawPts.map(p => [Math.round(p[0]), Math.round(p[1])]),
+  };
+  territories.push(t);
+  drawPts = [];
+  setMode('select');
+  selectTerritory(t.id);
+  renderObjectives();
+  persistTerritory(t);
+  toast('Territory created — name it and set who holds it.');
+  setTimeout(() => {
+    const inp = document.querySelector('.tcard.sel input[data-f="name"]');
+    if (inp) { inp.focus(); inp.select(); }
+  }, 50);
+}
+function cancelDraw() { drawPts = []; setMode('select'); }
+
+/* ══════════ VIEWPORT EVENTS ══════════ */
+let panDrag = null, dragMoved = false;
+viewport.addEventListener('pointerdown', e => {
+  if (e.button === 2) return;
+  dragMoved = false;
+  const pan = (mode === 'select') || e.button === 1 || spaceHeld;
+  panDrag = { x0: e.clientX, y0: e.clientY, vx: view.x, vy: view.y, pan };
+  viewport.setPointerCapture(e.pointerId);
+});
+viewport.addEventListener('pointermove', e => {
+  if (!panDrag || vertexDrag) return;
+  const dx = e.clientX - panDrag.x0, dy = e.clientY - panDrag.y0;
+  if (Math.hypot(dx, dy) > 4) dragMoved = true;
+  if (panDrag.pan && dragMoved) {
+    viewport.classList.add('panning');
+    view.x = panDrag.vx + dx;
+    view.y = panDrag.vy + dy;
+    applyView();
+  }
+});
+viewport.addEventListener('pointerup', e => {
+  viewport.classList.remove('panning');
+  const wasDrag = dragMoved;
+  panDrag = null;
+  if (wasDrag || vertexDrag) return;
+  if (mode === 'draw' && mapW && e.button === 0 && !spaceHeld) {
+    const p = screenToImage(e);
+    if (p.x < 0 || p.y < 0 || p.x > mapW || p.y > mapH) return;
+    if (drawPts.length >= 3) {
+      const d = Math.hypot(p.x - drawPts[0][0], p.y - drawPts[0][1]);
+      if (d < 12 / view.s) { finishDraw(); return; }
+    }
+    drawPts.push([p.x, p.y]);
+    updateDrawTip();
+    renderDrawLayer();
+  }
+});
+viewport.addEventListener('click', e => {
+  if (mode === 'select' && !dragMoved && (e.target === viewport || e.target === mapImg)) {
+    selectTerritory(null);
+  }
+});
+viewport.addEventListener('wheel', e => {
+  e.preventDefault();
+  zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.15 : 1 / 1.15);
+}, { passive: false });
+viewport.addEventListener('dblclick', e => {
+  if (mode === 'draw' && drawPts.length >= 4) {
+    const a = drawPts[drawPts.length - 1], b = drawPts[drawPts.length - 2];
+    if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 8 / view.s) drawPts.pop();
+    finishDraw();
+  }
+});
+viewport.addEventListener('contextmenu', e => { if (mode === 'draw') e.preventDefault(); });
+
+/* keyboard */
+let spaceHeld = false;
+window.addEventListener('keydown', e => {
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  const typing = /INPUT|TEXTAREA|SELECT/.test(tag) || (document.activeElement && document.activeElement.isContentEditable);
+  if (e.code === 'Space' && !typing) { spaceHeld = true; e.preventDefault(); }
+  if (typing) return;
+  if (mode === 'draw') {
+    if (e.key === 'Enter') { e.preventDefault(); finishDraw(); }
+    if (e.key === 'Escape') cancelDraw();
+    if (e.key === 'Backspace') { e.preventDefault(); drawPts.pop(); updateDrawTip(); renderDrawLayer(); }
+  } else {
+    if (e.key === 'Escape') selectTerritory(null);
+    if (e.key === 'Delete' && selectedId && canTerritory) deleteTerritory(selectedId);
+    if (e.key === 'd' && canTerritory) setMode('draw');
+  }
+});
+window.addEventListener('keyup', e => { if (e.code === 'Space') spaceHeld = false; });
+window.addEventListener('resize', () => { if (mapW) renderMap(); });
+
+/* ══════════ TERRITORY SIDEBAR ══════════ */
+function selectTerritory(id) {
+  selectedId = id;
+  renderMap(); renderTerritories();
+  if (id) switchTab('territories');
+}
+async function deleteTerritory(id) {
+  const t = territories.find(x => x.id === id);
+  if (!t) return;
+  if (!confirm(`Delete territory “${t.name}”?`)) return;
+  territories = territories.filter(x => x.id !== id);
+  if (selectedId === id) selectedId = null;
+  renderMap(); renderTerritories(); renderObjectives();
+  noteSaving();
+  const res = await deleteRecord('lvwar_territories', id);
+  noteSaved(res.ok, res.error);
+}
+
+function renderTerritories() {
+  const panel = $('panel-territories');
+  const vis = visibleTerritories();
+  if (!vis.length) {
+    panel.innerHTML = `<div class="empty-note">No borders drawn in the ${esc(activeTheatre().name)} theatre.${canTerritory ? '<br/>Use <b>✎ Draw Border</b> above the map to trace a territory.' : ''}</div>`;
+    return;
+  }
+  panel.innerHTML = '';
+  for (const t of vis) {
+    const st = STATUS[t.status] || STATUS.contested;
+    const card = document.createElement('div');
+    card.className = 'tcard' + (t.id === selectedId ? ' sel' : '');
+    const chipStyle = st.fill.startsWith('url')
+      ? `background:repeating-linear-gradient(45deg, ${st.stroke}55, ${st.stroke}55 3px, ${st.stroke}22 3px, ${st.stroke}22 6px)`
+      : `background:${st.fill}`;
+    card.innerHTML = `
+      <div class="tcard-top">
+        <span class="chip" style="${chipStyle}"></span>
+        <span class="tcard-name">${esc(t.name)}</span>
+        <span class="tcard-world">${esc(t.world || '')}</span>
+      </div>
+      <div class="tcard-status">${st.label}</div>`;
+    card.addEventListener('click', () => { if (t.id !== selectedId) { selectTerritory(t.id); zoomToTerritory(t); } });
+
+    if (t.id === selectedId) {
+      const ed = document.createElement('div');
+      ed.className = 'tcard-edit';
+      ed.addEventListener('click', e => e.stopPropagation());
+      const dis = canTerritory ? '' : ' disabled';
+      const worldOpts = meta.theatres.map(th =>
+        `<option${t.world === th.name ? ' selected' : ''}>${esc(th.name)}</option>`).join('');
+      ed.innerHTML = `
+        <div class="frow"><span>Name</span><input data-f="name" value="${esc(t.name)}"${dis}/></div>
+        <div class="frow"><span>World</span><select data-f="world"${dis}>${worldOpts}</select></div>
+        <div class="frow"><span>Control</span>
+          <select data-f="status"${dis}>
+            ${Object.entries(STATUS).map(([k, v]) => `<option value="${k}"${t.status === k ? ' selected' : ''}>${v.label}</option>`).join('')}
+          </select></div>
+        <div class="frow"><span>Notes</span><textarea data-f="notes"${dis}>${esc(t.notes)}</textarea></div>
+        <div class="tcard-btns">
+          <button type="button" class="btn" data-act="zoom">Zoom to</button>
+          ${canTerritory ? '<button type="button" class="btn danger" data-act="del">Delete</button>' : ''}
+        </div>`;
+      if (canTerritory) {
+        ed.querySelectorAll('[data-f]').forEach(inp => {
+          inp.addEventListener('input', () => {
+            t[inp.dataset.f] = inp.value;
+            if (inp.dataset.f === 'status' || inp.dataset.f === 'world') { renderMap(); renderTerritories(); renderObjectives(); }
+            else if (inp.dataset.f === 'name') {
+              renderMap();
+              const n = card.querySelector('.tcard-name');
+              if (n) n.textContent = t.name;
+            }
+            persistTerritoryDebounced(t);
+          });
+        });
+        const del = ed.querySelector('[data-act="del"]');
+        if (del) del.addEventListener('click', () => deleteTerritory(t.id));
+      }
+      ed.querySelector('[data-act="zoom"]').addEventListener('click', () => zoomToTerritory(t));
+      card.appendChild(ed);
+    }
+    panel.appendChild(card);
+  }
+}
+
+/* ══════════ BATTLES & TRACKER ══════════ */
+const SCALES = { 1: 'Skirmish', 2: 'Major battle', 3: 'Decisive' };
+function battleScore(b) { return b.victor === 'lech' ? +b.scale : b.victor === 'vindex' ? -b.scale : 0; }
+// Only a concluded battle moves the war. Scheduled and live ones carry no result
+// yet, so they must not tilt the tracker while they are being fought.
+function warScore() {
+  return clamp(concludedBattles().reduce((s, b) => s + battleScore(b), 0), -meta.threshold, meta.threshold);
+}
+function displayNameOf(username) {
+  const a = accountsDir[String(username || '').toLowerCase()];
+  return (a && a.displayName) || username || '';
+}
+
+function renderTracker() {
+  const thr = meta.threshold, score = warScore();
+  const pct = (score + thr) / (2 * thr) * 100;
+  if (document.activeElement !== $('threshold')) $('threshold').value = thr;
+  $('trkNeedle').style.left = pct + '%';
+  $('trkScore').textContent = score === 0 ? '0' : (score > 0 ? `+${score} LECH` : `+${-score} VINDEX`);
+
+  const fill = $('trkFill');
+  fill.className = 'trk-fill ' + (score >= 0 ? 'lech' : 'vin');
+  if (score >= 0) { fill.style.left = '50%'; fill.style.right = (100 - pct) + '%'; }
+  else { fill.style.left = pct + '%'; fill.style.right = '50%'; }
+
+  $('trkBar').querySelectorAll('.trk-tick').forEach(n => n.remove());
+  for (let i = -thr; i <= thr; i++) {
+    const tick = document.createElement('div');
+    tick.className = 'trk-tick' + (i === 0 ? ' mid' : '');
+    tick.style.left = ((i + thr) / (2 * thr) * 100) + '%';
+    $('trkBar').appendChild(tick);
+  }
+
+  const mainEl = $('trkStatusMain');
+  const mag = Math.abs(score) / thr;
+  const side = score > 0 ? 'LECH' : 'VINDEX';
+  let txt, cls = score > 0 ? 'lech' : score < 0 ? 'vin' : '';
+  const fought = concludedBattles();
+  if (score === 0) txt = fought.length ? 'DEADLOCK' : 'THE GUNS ARE SILENT';
+  else if (mag >= 1) { txt = `⚑ TOTAL ${side} VICTORY ⚑`; cls += ' victory'; }
+  else if (mag >= 0.7) txt = `${side} NEARING VICTORY`;
+  else if (mag >= 0.4) txt = `${side} DOMINANT`;
+  else if (mag >= 0.2) txt = `${side} ADVANCING`;
+  else txt = `SLIGHT ${side} ADVANTAGE`;
+  mainEl.textContent = txt;
+  mainEl.className = cls.trim();
+
+  const last3 = fought.slice(-3);
+  const mom = last3.reduce((s, b) => s + battleScore(b), 0);
+  $('trkMomentum').textContent = last3.length
+    ? 'momentum: ' + (mom > 0 ? 'Lech ▲' : mom < 0 ? 'Vindex ▲' : 'even —')
+    : '';
+
+  const lw = fought.filter(b => b.victor === 'lech').length;
+  const vw = fought.filter(b => b.victor === 'vindex').length;
+  $('lechWins').textContent = lw + (lw === 1 ? ' victory' : ' victories');
+  $('vinWins').textContent = vw + (vw === 1 ? ' victory' : ' victories');
+  renderObjectives();
+}
+
+/* ══════════ OBJECTIVES ══════════ */
+// Standing orders are set by hand from the tracker. The war is adjudicated by a
+// person, so the orders say exactly what the administrator means them to say —
+// nothing is inferred from polygon adjacency, which could only ever guess.
+function objectivesOf() {
+  const o = (meta && meta.objectives) || {};
+  const one = s => ({ mode: String((o[s] || {}).mode || ''), target: String((o[s] || {}).target || '') });
+  return { lech: one('lech'), vindex: one('vindex') };
+}
+function objLine(side, o) {
+  const head = `<span class="obj-lbl">${side === 'lech' ? 'LECH' : 'VINDEX'} OBJECTIVE</span>`;
+  const m = OBJ_MODES[o.mode];
+  if (!m) return head + `<span class="obj-verb idle">standing by</span>`;
+  const verb = `<span class="obj-verb ${m.cls}">${m.icon ? m.icon + ' ' : ''}${m.label}</span>`;
+  if (o.target) return head + verb + ` <span class="obj-tgt" title="${esc(o.target)}">${esc(o.target)}</span>`;
+  const fallback = m.cls === 'attack' ? 'press the advance' : m.cls === 'defend' ? 'hold the front' : '';
+  return head + verb + (fallback ? ` <span class="obj-tgt none">${fallback}</span>` : '');
+}
+function objEditor(side, o) {
+  const opts = ['<option value="">— standing by —</option>'].concat(
+    Object.keys(OBJ_MODES).map(k =>
+      `<option value="${k}"${o.mode === k ? ' selected' : ''}>${OBJ_MODES[k].label}</option>`)).join('');
+  return `<span class="obj-lbl">${side === 'lech' ? 'LECH' : 'VINDEX'} OBJECTIVE</span>
+    <span class="obj-edit">
+      <select data-obj="${side}" data-f="mode">${opts}</select>
+      <input type="text" data-obj="${side}" data-f="target" value="${esc(o.target)}" placeholder="location / detail"/>
+    </span>`;
+}
+function renderObjectives() {
+  const o = objectivesOf();
+  const vin = $('objVin'), lech = $('objLech');
+  if (!canMeta) {
+    vin.innerHTML = objLine('vindex', o.vindex);
+    lech.innerHTML = objLine('lech', o.lech);
+    return;
+  }
+  vin.innerHTML = objEditor('vindex', o.vindex);
+  lech.innerHTML = objEditor('lech', o.lech);
+  [vin, lech].forEach(hostEl => hostEl.querySelectorAll('[data-obj]').forEach(ctl => {
+    ctl.addEventListener(ctl.tagName === 'SELECT' ? 'change' : 'input', () => {
+      if (!canMeta) return;
+      if (!meta.objectives) meta.objectives = {};
+      const cur = meta.objectives[ctl.dataset.obj] ||
+        (meta.objectives[ctl.dataset.obj] = { mode: '', target: '' });
+      cur[ctl.dataset.f] = ctl.value;
+      persistMetaDebounced();
+    });
+  }));
+}
+
+/* ══════════ NEXT BATTLE ══════════ */
+// The scheduled engagement is stored as a wall-clock date and time in a named
+// zone. Every viewer sees it rendered in their OWN local time, with the zone it
+// was set in shown beside it, so "7:00 PM EDT" is unambiguous wherever the
+// person reading it happens to be.
+// The four American zones the war is fought across. Each is stored as its IANA
+// name rather than as a bare "EST", because the IANA zone carries daylight
+// saving with it — America/New_York is EST in winter and EDT in summer, which a
+// fixed-offset "EST" would get wrong for half the year. The short code is only
+// ever what we *show*.
+const US_ZONES = [
+  { tz: 'America/New_York',    code: 'EST', label: 'EST — Eastern' },
+  { tz: 'America/Chicago',     code: 'CST', label: 'CST — Central' },
+  { tz: 'America/Denver',      code: 'MST', label: 'MST — Mountain' },
+  { tz: 'America/Los_Angeles', code: 'PST', label: 'PST — Pacific' },
+];
+const DEFAULT_TZ = 'America/New_York';
+// The zone's own abbreviation at that moment — EST or EDT, CST or CDT — so the
+// banner reads correctly on either side of the daylight-saving switch.
+function zoneAbbr(tz, date) {
+  try {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' })
+      .formatToParts(date || new Date()).find(x => x.type === 'timeZoneName');
+    if (p && p.value) return p.value;
+  } catch (e) {}
+  const z = US_ZONES.find(x => x.tz === tz);
+  return z ? z.code : (tz || DEFAULT_TZ);
+}
+// How far `tz` sits from UTC at a given instant, in milliseconds.
+function tzOffsetMs(tz, date) {
+  try {
+    const dtf = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const p = {};
+    for (const part of dtf.formatToParts(date)) p[part.type] = part.value;
+    return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second) - date.getTime();
+  } catch (e) { return 0; }
+}
+// Wall-clock in `tz` to the real instant. Resolved twice so a time sitting near
+// a daylight-saving switch lands on the correct side of it.
+function zonedToInstant(date, time, tz) {
+  if (!date || !time) return null;
+  const naive = Date.parse(date + 'T' + time + ':00Z');
+  if (isNaN(naive)) return null;
+  const zone = tz || DEFAULT_TZ;
+  let guess = naive - tzOffsetMs(zone, new Date(naive));
+  guess = naive - tzOffsetMs(zone, new Date(guess));
+  const d = new Date(guess);
+  return isNaN(d.getTime()) ? null : d;
+}
+// "19:00" as it was typed, shown the way it is spoken: "7:00 PM".
+function fmtClock(hhmm) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '').trim());
+  if (!m) return String(hhmm || '');
+  const h = +m[1];
+  return ((h % 12) || 12) + ':' + m[2] + ' ' + (h < 12 ? 'AM' : 'PM');
+}
+/* ══════════ BATTLE PHASES ══════════ */
+// A battle now exists before it is fought. Scheduled: rosters open, Strategy
+// Officers appointed, nothing counted. Live: the cap is enforced and the bench
+// runs. Concluded: victor and scale recorded, roster frozen as the record of who
+// actually fought. Battles written before phases existed carry a victor and no
+// phase, so those read as concluded.
+const PHASES = {
+  scheduled: { label: 'SCHEDULED', cls: 'ph-sched' },
+  live:      { label: 'LIVE',      cls: 'ph-live' },
+  concluded: { label: 'CONCLUDED', cls: 'ph-done' },
+};
+function phaseOf(b) { return (b && b.phase) ? b.phase : ((b && b.victor) ? 'concluded' : 'scheduled'); }
+function concludedBattles() { return battles.filter(b => phaseOf(b) === 'concluded' && b.victor); }
+function liveBattle() { return battles.find(b => phaseOf(b) === 'live') || null; }
+function startInstantOf(b) {
+  if (!b) return null;
+  return zonedToInstant(b.startDate || b.date, b.startTime, b.startTz);
+}
+// The soonest scheduled battle — the one the banner announces.
+function nextScheduled() {
+  const sched = battles.filter(b => phaseOf(b) === 'scheduled');
+  if (!sched.length) return null;
+  const dated = sched.map(b => ({ b, t: startInstantOf(b) })).filter(x => x.t);
+  if (!dated.length) return sched[0];
+  dated.sort((p, q) => p.t.getTime() - q.t.getTime());
+  return dated[0].b;
+}
+// The battle the war room is currently organised around.
+function focusBattle() { return liveBattle() || nextScheduled(); }
+
+/* ══════════ ROSTERS & THE 1.25× RULE ══════════ */
+// Each side keeps its own roster. The larger side may field at most 125% of the
+// smaller side's TOTAL PRESENT — everyone they have at the battle, benched or
+// not — rounded down. Below four present the rule is not applied at all: a
+// skirmish that small is left alone.
+//
+// Because the cap keys off *present* rather than *subbed in*, benching somebody
+// never moves either cap. The number only changes when a person genuinely joins
+// or leaves, which is what keeps it stable in the middle of a fight.
+const CAP_RATIO = 1.25;
+const CAP_RATIO_LEVEE = 1.375;   // a levée en masse lifts the 1.25× cap by a tenth
+const CAP_MIN_SIDE = 4;
+function capAgainst(opponentPresent) {
+  if (opponentPresent < CAP_MIN_SIDE) return Infinity;
+  return Math.floor(opponentPresent * CAP_RATIO);
+}
+function rosterKey(battleId, side) { return 'roster_' + battleId + '_' + side; }
+function rosterFor(battleId, side) {
+  const r = rosters[rosterKey(battleId, side)];
+  if (r) return r;
+  return { id: rosterKey(battleId, side), battleId: battleId, side: side,
+    strategyOfficer: '', benchLocation: '', members: [] };
+}
+function membersOf(r) { return Array.isArray(r.members) ? r.members : []; }
+function presentOf(r) { return membersOf(r).length; }
+function inOf(r) { return membersOf(r).filter(m => m.status !== 'benched').length; }
+// Everything one side needs to know about its own standing. Two order cards lift
+// a side's OWN cap — a levée en masse by a tenth, rapid redeploy by one head.
+function capBonusFor(own) {
+  const cards = rosterCards(own);
+  return { mult: cards.includes('levee') ? CAP_RATIO_LEVEE : 1, flat: cards.includes('rapid_redeploy') ? 1 : 0 };
+}
+function standing(battleId, side) {
+  const own = rosterFor(battleId, side);
+  const foe = rosterFor(battleId, side === 'lech' ? 'vindex' : 'lech');
+  // The cap anchors on the SMALLER side's present, so both sides share one 125%
+  // ceiling — the larger side is the one it actually binds. Keying each side off
+  // the other instead would hand the smaller team the higher cap, which is
+  // backwards, and let the two ratchet each other upward.
+  let cap = capAgainst(Math.min(presentOf(own), presentOf(foe)));
+  if (cap !== Infinity) { const bn = capBonusFor(own); cap = Math.floor(cap * bn.mult) + bn.flat; }
+  const active = inOf(own);
+  return { own, foe, cap, active, present: presentOf(own),
+    over: cap === Infinity ? 0 : Math.max(0, active - cap),
+    slots: cap === Infinity ? Infinity : Math.max(0, cap - active),
+    capped: cap !== Infinity };
+}
+const SIDES = { lech: { name: 'Empire of Lech', short: 'LECH', cls: 'lech' },
+                vindex: { name: 'Republic of Vindex', short: 'VINDEX', cls: 'vin' } };
+
+/* ── who may be made a Strategy Officer ──────────────────────────────────────
+   Only a commissioned officer of that country's own service. Each nation keeps
+   its service record on its own site — the Republic's Department of Defense and
+   the Empire's Ministry of War — and this reads those registers directly, so a
+   promotion or a discharge over there changes who is appointable here with no
+   second list to maintain.
+
+   Vindex commissions at O-1 (Second Lieutenant / Ensign); Lech commissions at
+   OF-1 (Lieutenant / Sub-Lieutenant). Everything below those is enlisted or a
+   non-commissioned officer and is never offered. */
+const MILITARY = {
+  vindex: { key: 'vx_dod_personnel', label: 'Vindex Department of Defense', site: 'deptdefense.html' },
+  lech:   { key: 'mow_personnel',    label: 'Imperial Ministry of War',     site: 'mow.html' },
+};
+// Officer grades only — mirrors the rank tables on those two sites. The grade
+// code is the source of truth; these abbreviations are only what gets printed.
+const OFFICER_RANKS = {
+  VA:   { 'O-1':'2LT','O-2':'1LT','O-3':'CPT','O-4':'MAJ','O-5':'LTC','O-6':'COL','O-7':'BG','O-8':'MG','O-9':'LTG','O-10':'GEN' },
+  VN:   { 'O-1':'ENS','O-2':'LTJG','O-3':'LT','O-4':'LCDR','O-5':'CDR','O-6':'CAPT','O-7':'RDML','O-8':'RADM','O-9':'VADM','O-10':'ADM' },
+  ILA:  { 'OF-1':'Lt','OF-2':'Capt','OF-3':'Maj','OF-4':'LCol','OF-5':'Col','OF-6':'BGen','OF-7':'DGen','OF-8':'CGen','OF-9':'Gen','OF-10':'ME' },
+  ILN:  { 'OF-1':'SLt','OF-2':'Lt','OF-3':'LCdr','OF-4':'Cdr','OF-5':'Capt','OF-6':'FAdm','OF-7':'CAdm','OF-8':'VAdm','OF-9':'Adm','OF-10':'GAdm' },
+  ILSOC:{ 'OF-2':'Capt','OF-3':'Maj','OF-5':'Col','OF-6':'BGen','OF-10':'COMSOC' },
+};
+// "O-3" and "OF-3" are commissions; "E-3" and "OR-3" are not.
+function isOfficerGrade(g) { return /^(O|OF)-\d+$/i.test(String(g || '').trim()); }
+function gradeRank(g) { const m = /^(?:O|OF)-(\d+)$/i.exec(String(g || '').trim()); return m ? +m[1] : 0; }
+const sameUser = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+
+function eligibleOfficers(side) {
+  const conf = MILITARY[side];
+  if (!conf) return [];
+  const reg = serviceRecords[conf.key] || {};
+  const seen = {}, out = [];
+  Object.keys(reg).forEach(id => {
+    const p = reg[id];
+    if (!p || String(p.status || 'active') !== 'active') return;
+    if (!isOfficerGrade(p.grade)) return;
+    const u = String(p.username || '').trim().toLowerCase();
+    if (!u || seen[u]) return;
+    // They must actually hold a Vintranet account, or they could never sign in
+    // to work the bench. (Skipped if the account directory has not loaded.)
+    if (Object.keys(accountsDir).length && !accountsDir[u]) return;
+    seen[u] = 1;
+    const abbr = (OFFICER_RANKS[p.branch] || {})[String(p.grade || '').toUpperCase()] || p.grade;
+    out.push({ username: u, name: p.name || displayNameOf(u) || u,
+      grade: p.grade, abbr: abbr, branch: p.branch || '' });
+  });
+  out.sort((a, b) => gradeRank(b.grade) - gradeRank(a.grade) || a.name.localeCompare(b.name));
+  return out;
+}
+
+/* ── who may work a roster ── */
+function isVindexCommandA(a) {
+  if (!a) return false;
+  if (isSysAdminA(a)) return true;
+  const r = String(a.vxRole || '');
+  if (r === 'president' || r === 'vice_president') return true;
+  return isVxSecDef(a);
+}
+function isLechCommandA(a) {
+  if (!a) return false;
+  if (isSysAdminA(a)) return true;
+  if (hasWarA(a)) return true;
+  const off = bkOfficials || {};
+  const u = String(a.username || '').toLowerCase();
+  if (off.chancellor_username && String(off.chancellor_username).toLowerCase() === u) return true;
+  const bare = String(off.chancellor || '').toLowerCase();
+  return !!bare && bare !== 'vacant' &&
+    (bare === u || bare === String(a.displayName || '').toLowerCase());
+}
+function isCommandFor(side) { return side === 'vindex' ? isVindexCommandA(account) : isLechCommandA(account); }
+function isSOFor(side, battleId) {
+  if (!account) return false;
+  return String(rosterFor(battleId, side).strategyOfficer || '').toLowerCase() ===
+         String(account.username || '').toLowerCase();
+}
+// War command works the roster; so does the Strategy Officer they appointed.
+function canWorkRoster(side, battleId) { return isCommandFor(side) || isSOFor(side, battleId); }
+
+async function persistRoster(r) {
+  noteSaving();
+  r.updatedAt = Date.now();
+  rosters[r.id] = r;
+  const res = await saveRecord('lvwar_rosters', r);
+  noteSaved(res.ok, res.error);
+  if (!res.ok) loadAll();
+  return res;
+}
+// Where the signed-in account stands in this battle, if anywhere.
+function myCombatant(b) {
+  if (!account || !b) return null;
+  const u = String(account.username || '').toLowerCase();
+  if (!u) return null;
+  const list = ['lech', 'vindex'];
+  for (let i = 0; i < list.length; i++) {
+    const r = rosterFor(b.id, list[i]);
+    const m = membersOf(r).find(x => String(x.username || '').toLowerCase() === u);
+    if (m) return { side: list[i], m: m, roster: r };
+  }
+  return null;
+}
+
+/* ══════════ BATTLE ORDERS — THE CARD SYSTEM ══════════
+   The currency of the war is TIME HELD. A battle runs 30 minutes; a point is
+   held by whoever has 65% of the force on it, and the side that holds it longest
+   wins. Order cards feed that clock in two ways only:
+     · banked seconds — a flat ± to your held-time total (naval bombardment +2:00);
+     · rule benders — they change the live fight (entrenchment lifts the enemy's
+       hold threshold to 70% while you defend; levée lifts your roster cap).
+   Each Strategy Officer drafts a hand from a shared, admin-curated catalogue,
+   spending from a fixed command-point budget, then seals it before the battle. */
+const BATTLE_SECONDS = 1800;      // a 30-minute engagement
+const HOLD_THRESHOLD = 0.65;      // 65% of the force on the point holds it
+const CP_BUDGET = 6;              // command points a side spends on its hand
+
+// Terrain a zone can carry — set by the map's keepers, read by supply rules.
+const TERRAIN = {
+  coast:    { label: 'Coastal',   icon: '⚓' },
+  airfield: { label: 'Airfield',  icon: '✈' },
+  fort:     { label: 'Fortified', icon: '🛡' },
+  urban:    { label: 'Urban',     icon: '🏙' },
+  mountain: { label: 'Mountain',  icon: '⛰' },
+  forest:   { label: 'Forest',    icon: '🌲' },
+};
+
+// The five branches. Combat branches sit on the counter wheel — air beats naval,
+// naval beats ground, ground beats air; a countered card's bonus is halved.
+// Support branches ignore the wheel and bend the rules around it.
+const BRANCHES = {
+  naval:     { name: 'Naval',     kind: 'combat',  beats: 'ground', color: '#4a86c8',
+               blurb: 'Guns from the sea. Needs a friendly coast in range.' },
+  air:       { name: 'Air',       kind: 'combat',  beats: 'naval',  color: '#7bb8e0',
+               blurb: 'Planes overhead. Needs a friendly airfield in range.' },
+  ground:    { name: 'Ground',    kind: 'combat',  beats: 'air',    color: '#c8a44a',
+               blurb: 'Boots on the point. Strongest when you defend.' },
+  logistics: { name: 'Logistics', kind: 'support', beats: '',       color: '#c88a4a',
+               blurb: 'Bends the rules — more troops, more points.' },
+  intel:     { name: 'Intel',     kind: 'support', beats: '',       color: '#9a7bc8',
+               blurb: 'Spy on the enemy hand and foul their orders.' },
+  special:   { name: 'Doctrine',  kind: 'support', beats: '',       color: '#c85a5a',
+               blurb: 'One-off tricks that swing the whole battle.' },
+};
+
+// The starting catalogue. Kept here as the seed; once an administrator saves the
+// deck (lvwar_cards) that live copy wins, exactly as the party register works on
+// the elections page. `time` is banked seconds (+/-); `needs` is a supply/role
+// requirement; `counter` names what beats it, for the card face.
+const DEFAULT_CARDS = {
+  naval_bombardment: { id: 'naval_bombardment', name: 'Naval bombardment', branch: 'naval', cost: 3, time: 120,
+    effect: '+2:00 held time if you take the field.', needs: { feature: 'coast', range: 2 }, counter: 'air_superiority' },
+  blockade: { id: 'blockade', name: 'Blockade', branch: 'naval', cost: 4, time: 0, rule: 'block',
+    effect: 'Throttle the enemy’s supply — −1:30 off their banked order time.', needs: { feature: 'coast' }, counter: 'air_superiority' },
+  amphibious: { id: 'amphibious', name: 'Amphibious assault', branch: 'naval', cost: 3, time: 0, rule: 'negate_entrench',
+    effect: 'Cancel the enemy’s entrenchment.', needs: { feature: 'coast' }, counter: 'flak_battery' },
+  convoy_escort: { id: 'convoy_escort', name: 'Convoy escort', branch: 'naval', cost: 2, time: 0, rule: 'shield_log',
+    effect: 'Your logistics cards can’t be cancelled.', needs: { feature: 'coast', range: 2 }, counter: '' },
+
+  air_superiority: { id: 'air_superiority', name: 'Air superiority', branch: 'air', cost: 3, time: 60, rule: 'cancel',
+    effect: 'Cancel one enemy card; +1:00 held time.', needs: { feature: 'airfield', range: 3 }, counter: 'flak_battery' },
+  close_air_support: { id: 'close_air_support', name: 'Close air support', branch: 'air', cost: 2, time: 60, rule: 'cas',
+    effect: '+1:00 held time — bombs on the point.', needs: { feature: 'airfield', range: 3 }, counter: 'flak_battery' },
+  strategic_bombing: { id: 'strategic_bombing', name: 'Strategic bombing', branch: 'air', cost: 4, time: 0, rule: 'cp_enemy_next',
+    effect: 'Enemy has −2 command points next battle.', needs: { feature: 'airfield', range: 3 }, counter: 'air_superiority' },
+  paratroopers: { id: 'paratroopers', name: 'Paratroopers', branch: 'air', cost: 3, time: 120,
+    effect: '+2:00 held time — dropped straight onto the point.', needs: { feature: 'airfield' }, counter: 'ground' },
+
+  entrenchment: { id: 'entrenchment', name: 'Entrenchment', branch: 'ground', cost: 2, time: 60, rule: 'threshold',
+    effect: '+1:00 held on defence — dug in, and blunts enemy air.', needs: { cond: 'defending' }, counter: 'air_superiority' },
+  flak_battery: { id: 'flak_battery', name: 'Flak battery', branch: 'ground', cost: 2, time: 0, rule: 'cancel_air',
+    effect: 'Cancel one enemy air card.', needs: { cond: 'holdzone' }, counter: 'naval_bombardment' },
+  forced_march: { id: 'forced_march', name: 'Forced march', branch: 'ground', cost: 2, time: 60,
+    effect: '+1:00 held time — your troops reach the point first.', needs: null, counter: 'blockade' },
+  guerrilla_ambush: { id: 'guerrilla_ambush', name: 'Guerrilla ambush', branch: 'ground', cost: 3, time: 180, rule: 'underdog',
+    effect: '+3:00 if you fight under the roster cap.', needs: { cond: 'holdzone' }, counter: 'recon_flight' },
+
+  levee: { id: 'levee', name: 'Levée en masse', branch: 'logistics', cost: 2, time: 0, rule: 'cap',
+    effect: 'Your fielding cap +10% this battle.', needs: null, counter: 'blockade' },
+  supply_depot: { id: 'supply_depot', name: 'Supply depot', branch: 'logistics', cost: 1, time: 0, rule: 'cp_self_next',
+    effect: '+1 command point next battle if you win here.', needs: { cond: 'holdafter' }, counter: 'strategic_bombing' },
+  rapid_redeploy: { id: 'rapid_redeploy', name: 'Rapid redeploy', branch: 'logistics', cost: 2, time: 0, rule: 'swap',
+    effect: 'Field one extra fighter over your cap this battle.', needs: null, counter: 'feint' },
+
+  feint: { id: 'feint', name: 'Feint', branch: 'intel', cost: 1, time: 0, rule: 'peek',
+    effect: 'Reveal one of the enemy’s drafted orders.', needs: { cond: 'officer' }, counter: 'counter_intel' },
+  counter_intel: { id: 'counter_intel', name: 'Counter-intel', branch: 'intel', cost: 1, time: 0, rule: 'blank_intel',
+    effect: 'Blank every enemy intel card.', needs: null, counter: '' },
+  recon_flight: { id: 'recon_flight', name: 'Recon flight', branch: 'intel', cost: 2, time: 0, rule: 'reveal',
+    effect: 'Reveal the enemy’s numbers and one of their orders.', needs: null, counter: 'counter_intel' },
+  sabotage: { id: 'sabotage', name: 'Sabotage', branch: 'intel', cost: 3, time: 0, rule: 'disable',
+    effect: 'Disable one random enemy card.', needs: { cond: 'officer' }, counter: 'counter_intel' },
+
+  scorched_earth: { id: 'scorched_earth', name: 'Scorched earth', branch: 'special', cost: 3, time: 0, rule: 'deny',
+    effect: 'Deny the enemy their best order — cancel their highest-banked card.', needs: { cond: 'holdzone' }, counter: '' },
+  war_bonds: { id: 'war_bonds', name: 'War bonds', branch: 'special', cost: 2, time: 90, rule: 'cp_self',
+    effect: '+1:30 held time — the home front digs deep.', needs: { cond: 'holdzone' }, counter: '' },
+  last_stand: { id: 'last_stand', name: 'Last stand', branch: 'special', cost: 0, time: 240, rule: 'trailing',
+    effect: 'A last, defiant defence. +4:00 on defence.', needs: { cond: 'defending' }, counter: '', trailingOnly: true },
+};
+
+// The live catalogue: the saved deck once one exists, else the seed.
+function cardCatalogue() { return (warCards && Object.keys(warCards).length) ? warCards : DEFAULT_CARDS; }
+function cardList() { return Object.values(cardCatalogue()).filter(c => c && c.id && c.enabled !== false); }
+function cardById(id) { return cardCatalogue()[id] || DEFAULT_CARDS[id] || null; }
+function branchMeta(b) { return BRANCHES[b] || { name: b || '—', kind: 'support', color: '#8a8f98', blurb: '' }; }
+// Banked seconds as a signed clock: +2:00, −1:30, or a dash for zero.
+function fmtBank(s) {
+  s = Math.round(Number(s) || 0);
+  if (!s) return '—';
+  const m = Math.floor(Math.abs(s) / 60), ss = Math.abs(s) % 60;
+  return (s < 0 ? '−' : '+') + m + ':' + String(ss).padStart(2, '0');
+}
+// A one-line, plain-English reading of a card's supply requirement.
+// Battle grants — the capabilities the admin marks on a battle. Naval and air are
+// per-side; the defender is one side (or neither). A card's requirement resolves
+// to one of these, and the card is only draftable if that side has been granted it.
+const GRANTS = {
+  naval: { label: 'Naval access', side: true,
+    note: 'This side can bring warships or coastal guns to bear on the point — a shore, port or river they work from. Unlocks the naval cards for them.' },
+  air:   { label: 'Air access', side: true,
+    note: 'This side can fly sorties over the point from an airfield or carrier in reach. Unlocks the air cards for them.' },
+  defender: { label: 'Defending', side: false,
+    note: 'This side is dug in holding the point while the other attacks it. Unlocks the defensive cards — entrenchment, ambush, last stand.' },
+};
+const GRANT_BLOCK = { naval: 'This side has no naval access this battle', air: 'This side has no air access this battle', defender: 'Only the defending side may play this' };
+// Which grant, if any, a card needs — reading either the new needs.grant or the
+// older feature/condition shapes so the seeded catalogue keeps working.
+function neededGrant(card) {
+  const n = card && card.needs; if (!n) return null;
+  if (n.grant) return n.grant;
+  if (n.feature === 'coast') return 'naval';
+  if (n.feature === 'airfield') return 'air';
+  if (n.cond === 'defending' || n.cond === 'holdzone') return 'defender';
+  return null;
+}
+function battleGrants(b) { return (b && b.grants) || {}; }
+function hasGrant(b, side, g) {
+  const gr = battleGrants(b);
+  return g === 'defender' ? gr.defender === side : !!(gr[side] && gr[side][g]);
+}
+function needText(c) {
+  if (c && c.needs && c.needs.cond === 'officer') return 'Needs a Strategy Officer appointed.';
+  const g = neededGrant(c);
+  if (g === 'naval') return 'Needs naval access (set on the battle).';
+  if (g === 'air') return 'Needs air access (set on the battle).';
+  if (g === 'defender') return 'Only for the defending side.';
+  if (c && c.needs && c.needs.cond === 'holdafter') return 'Pays off only if you hold the point after.';
+  return 'No requirement.';
+}
+
+/* ── drafting a hand: the Strategy Officer's selection, on the roster record ──── */
+let draftPicker = null;   // which side's card picker is open in the roster room
+function rosterCards(r) { return Array.isArray(r.cards) ? r.cards.filter(id => cardById(id)) : []; }
+function cpSpent(r) { return rosterCards(r).reduce((a, id) => a + ((cardById(id) || {}).cost || 0), 0); }
+// The side that is behind on the war tracker — the only one who may play a card
+// marked trailingOnly (the quiet comeback lifeline). Null when the war is level.
+function trailingSide() {
+  const sum = concludedBattles().reduce((a, b) => a + battleScore(b), 0);
+  return sum > 0 ? 'vindex' : sum < 0 ? 'lech' : null;
+}
+// The last battle settled before this one — where a strategic bombing or a supply
+// depot cashes out, one battle later.
+function prevConcluded(b) {
+  const done = concludedBattles().filter(x => x.id !== (b && b.id))
+    .sort((p, q) => (p.concludedAt || p.at || 0) - (q.concludedAt || q.at || 0));
+  return done.length ? done[done.length - 1] : null;
+}
+// A side's command-point budget for a battle: the base six, minus an enemy's
+// strategic bombing last time, plus a supply depot they held onto by winning.
+function battleCP(b, side) {
+  let cp = CP_BUDGET;
+  const prev = prevConcluded(b);
+  if (prev) {
+    const foe = side === 'lech' ? 'vindex' : 'lech';
+    if (rosterCards(rosterFor(prev.id, foe)).includes('strategic_bombing')) cp -= 2;
+    if (rosterCards(rosterFor(prev.id, side)).includes('supply_depot') && prev.victor === side) cp += 1;
+  }
+  return Math.max(1, cp);
+}
+// Why a card can't be drafted right now — null means it can. Requirements read
+// off the grants the admin set on the battle, not off the map.
+function cardBlockedReason(side, b, card, r) {
+  if (card.enabled === false) return 'Not in the deck';
+  if (card.trailingOnly && trailingSide() !== side) return 'Only the side that is behind may play this';
+  if (!rosterCards(r).includes(card.id) && card.cost > battleCP(b, side) - cpSpent(r)) return 'Not enough command points';
+  const n = card.needs;
+  if (n && n.cond === 'officer' && !r.strategyOfficer) return 'Appoint a Strategy Officer first';
+  const g = neededGrant(card);
+  if (g && !hasGrant(b, side, g)) return GRANT_BLOCK[g];
+  return null;
+}
+// One side's orders inside the roster column: face-down for the enemy until the
+// battle is over, editable for its own Strategy Officer while still scheduled.
+function ordersBlock(b, side) {
+  const r = rosterFor(b.id, side), ph = phaseOf(b);
+  const mine = canWorkRoster(side, b.id), concluded = ph === 'concluded';
+  const ids = rosterCards(r), spent = cpSpent(r);
+  if (!mine && !concluded) {
+    return `<div class="ords"><div class="ordhd">BATTLE ORDERS
+      <span class="ordsealed">${r.sealed ? 'SEALED' : (ids.length ? ids.length + ' drafted' : '—')}</span></div>
+      <div class="ordface">${ids.length ? ids.map(() => '<span class="ofd">🂠</span>').join('') : '<span class="rempty">no orders</span>'}</div>
+      <div class="rnote">Hidden until the battle concludes.</div></div>`;
+  }
+  const canDraft = mine && ph === 'scheduled' && !r.sealed;
+  const chips = ids.length ? ids.map(id => {
+    const c = cardById(id), bm = branchMeta(c.branch);
+    return `<span class="ochip" style="border-color:${bm.color}55"><span class="odot" style="background:${bm.color}"></span>${esc(c.name)}
+      <span class="ocost">${c.cost}p</span>${c.time ? `<span class="obank">${fmtBank(c.time)}</span>` : ''}
+      ${canDraft ? `<button class="ox" data-rmcard="${esc(id)}" data-side="${side}" title="Remove">✕</button>` : ''}</span>`;
+  }).join('') : '<span class="rempty">no orders drafted</span>';
+  let controls = '';
+  if (canDraft) {
+    controls = `<div class="ordbtns"><button class="btn" data-addcard="${side}">＋ Add order</button>
+      ${ids.length ? `<button class="btn primary" data-seal="${side}">Seal orders 🔒</button>` : ''}</div>`;
+    if (draftPicker === side) controls += pickerHTML(b, side, r);
+  } else if (mine && r.sealed && ph === 'scheduled') {
+    controls = `<div class="ordbtns"><span class="ordsealed">SEALED</span><button class="btn" data-unseal="${side}">Unseal to edit</button></div>`;
+  } else if (mine && ph !== 'scheduled' && !concluded) {
+    controls = `<div class="rnote">Orders are locked — the battle has begun.</div>`;
+  }
+  const budget = battleCP(b, side);
+  const cpNote = budget !== CP_BUDGET ? ` <em>(base ${CP_BUDGET}${budget > CP_BUDGET ? ' +' + (budget - CP_BUDGET) : ' −' + (CP_BUDGET - budget)})</em>` : '';
+  // Feint and recon buy a look at the enemy hand — resolved here so the officer
+  // sees it while there is still time to answer it.
+  let intel = '';
+  if (mine && !concluded) {
+    const foe = rosterFor(b.id, side === 'lech' ? 'vindex' : 'lech');
+    const fids = rosterCards(foe), one = fids[0] ? cardById(fids[0]) : null;
+    if (ids.includes('recon_flight'))
+      intel = `<div class="rnote">🔍 Recon: enemy has <b>${presentOf(foe)}</b> present and <b>${fids.length}</b> order${fids.length === 1 ? '' : 's'}${one ? `, incl. “${esc(one.name)}”` : ''}.</div>`;
+    else if (ids.includes('feint'))
+      intel = `<div class="rnote">🔍 Feint: one enemy order is “${one ? esc(one.name) : '—'}”.</div>`;
+  }
+  return `<div class="ords"><div class="ordhd">BATTLE ORDERS <span class="ordcp">${spent} / ${budget} pts${cpNote}</span></div>
+    <div class="ochips">${chips}</div>${intel}${controls}</div>`;
+}
+function pickerHTML(b, side, r) {
+  const have = battleCP(b, side) - cpSpent(r);
+  const rows = cardList().filter(c => !rosterCards(r).includes(c.id)).map(c => {
+    const bm = branchMeta(c.branch), reason = cardBlockedReason(side, b, c, r);
+    return `<button class="pcard" ${reason ? 'disabled' : ''} data-pick="${esc(c.id)}" data-side="${side}" style="border-left-color:${bm.color}">
+      <span class="ptop"><span class="pname">${esc(c.name)}</span>${c.time ? `<span class="obank">${fmtBank(c.time)}</span>` : ''}<span class="ocost">${c.cost}p</span></span>
+      <span class="peff">${esc(c.effect || '')}</span>
+      <span class="pneed${reason ? ' bad' : ''}">${esc(reason || needText(c))}</span></button>`;
+  }).join('');
+  return `<div class="picker"><div class="pickhd">Choose orders — <b>${have}</b> pts left
+    <button class="btn" data-pickclose="1">Done</button></div><div class="pgrid">${rows}</div></div>`;
+}
+
+function fmtDur(secs) { secs = Math.max(0, Math.round(secs)); return Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0'); }
+
+/* ══════════ RESOLUTION — sealed hands + held time → the tracker move ══════════
+   Deterministic, in a fixed order so the same hands always resolve the same way:
+     1. counter-intel blanks the enemy's intel cards
+     2. any surviving sabotage disables one random enemy card
+     3. flak batteries shoot down enemy air cards
+     4. air superiority cancels the enemy's costliest surviving card
+     5. survivors bank their seconds — combat cards countered on the wheel are
+        halved; conditionals (urban CAS, underdog ambush, trailing last stand)
+        resolve here.
+   The banked seconds are added to the held time the Registrar entered; whoever
+   ends with more held time wins, and the minute-margin sets the tracker move. */
+function resolveOrders(b) {
+  const foe = s => s === 'lech' ? 'vindex' : 'lech';
+  const build = s => rosterCards(rosterFor(b.id, s)).map(id => cardById(id)).filter(Boolean)
+    .map(c => ({ id: c.id, branch: c.branch, alive: true, bank: c.time || 0, note: '' }));
+  const hand = { lech: build('lech'), vindex: build('vindex') };
+  const alive = s => hand[s].filter(x => x.alive);
+  const has = (s, id) => hand[s].some(x => x.id === id && x.alive);
+  // A convoy escort keeps this side's logistics cards off the cancel table.
+  const shielded = { lech: has('lech', 'convoy_escort'), vindex: has('vindex', 'convoy_escort') };
+  const killable = (s, x) => !(shielded[s] && (cardById(x.id) || {}).branch === 'logistics');
+  const killBy = (s, pred, metric, note) => {
+    const c = alive(s).filter(x => pred(x) && killable(s, x))
+      .sort((a, z) => metric(z) - metric(a))[0];
+    if (c) { c.alive = false; c.note = note || 'cancelled'; }
+  };
+  const byCost = x => (cardById(x.id) || {}).cost || 0, byBank = x => x.bank || 0;
+  ['lech', 'vindex'].forEach(s => {
+    if (has(s, 'counter_intel'))
+      hand[foe(s)].forEach(x => { if ((cardById(x.id) || {}).branch === 'intel' && killable(foe(s), x)) { x.alive = false; x.note = 'blanked'; } });
+  });
+  ['lech', 'vindex'].forEach(s => alive(s).filter(x => x.id === 'sabotage').forEach(() => {
+    const cs = alive(foe(s)).filter(x => killable(foe(s), x)); if (cs.length) { const t = cs[Math.floor(Math.random() * cs.length)]; t.alive = false; t.note = 'sabotaged'; }
+  }));
+  ['lech', 'vindex'].forEach(s => alive(s).filter(x => x.id === 'flak_battery').forEach(() => killBy(foe(s), x => (cardById(x.id) || {}).branch === 'air', byCost)));
+  ['lech', 'vindex'].forEach(s => alive(s).filter(x => x.id === 'amphibious').forEach(() => killBy(foe(s), x => x.id === 'entrenchment', byCost, 'stormed')));
+  ['lech', 'vindex'].forEach(s => alive(s).filter(x => x.id === 'air_superiority').forEach(() => killBy(foe(s), () => true, byCost)));
+  ['lech', 'vindex'].forEach(s => alive(s).filter(x => x.id === 'scorched_earth').forEach(() => killBy(foe(s), x => x.bank > 0, byBank, 'denied')));
+  const trailing = trailingSide();
+  ['lech', 'vindex'].forEach(s => alive(s).forEach(x => {
+    const c = cardById(x.id) || {};
+    if (x.id === 'guerrilla_ambush') { const st = standing(b.id, s), fs = standing(b.id, foe(s)); if (!(st.present < fs.present)) { x.bank = 0; x.note = 'not outnumbered'; } }
+    if (c.trailingOnly && s !== trailing) { x.bank = 0; x.alive = false; x.note = 'only the trailing side'; }
+    const bm = BRANCHES[c.branch];
+    if (bm && bm.kind === 'combat' && x.bank > 0) {
+      const beatenBy = Object.keys(BRANCHES).find(k => BRANCHES[k].beats === c.branch);
+      if (beatenBy && alive(foe(s)).some(y => (cardById(y.id) || {}).branch === beatenBy)) { x.bank = Math.round(x.bank / 2); x.note = (x.note ? x.note + ', ' : '') + 'countered'; }
+    }
+  }));
+  const banked = { lech: alive('lech').reduce((a, x) => a + (x.bank || 0), 0), vindex: alive('vindex').reduce((a, x) => a + (x.bank || 0), 0) };
+  // A blockade throttles the enemy's supply — 90s off their banked total per blockade.
+  ['lech', 'vindex'].forEach(s => alive(s).filter(x => x.id === 'blockade').forEach(() => { banked[foe(s)] = Math.max(0, banked[foe(s)] - 90); }));
+  return { hand, banked, trailing };
+}
+// Coarse tracker bucket, so one 30-minute battle can't blow past the war line: a
+// tight win is a skirmish, a runaway is decisive.
+function scaleBucket(marginMin) { return marginMin <= 2 ? 1 : marginMin <= 6 ? 2 : 3; }
+function finalResult(b, heldLechMin, heldVindexMin) {
+  const res = resolveOrders(b);
+  const totalL = (Number(heldLechMin) || 0) * 60 + res.banked.lech;
+  const totalV = (Number(heldVindexMin) || 0) * 60 + res.banked.vindex;
+  const diff = totalL - totalV, marginMin = Math.round(Math.abs(diff) / 60);
+  const victor = diff > 0 ? 'lech' : diff < 0 ? 'vindex' : 'stalemate';
+  const scale = victor === 'stalemate' ? 0 : scaleBucket(Math.max(1, marginMin));
+  return { res, totalL, totalV, diff, marginMin, victor, scale };
+}
+// The live breakdown shown while the Registrar sets the held time: each side's
+// orders, what banked and what got cancelled, the totals, and the tracker move.
+function resolutionSummaryHTML(b, heldL, heldV) {
+  const R = finalResult(b, heldL, heldV);
+  const side = s => {
+    const held = (s === 'lech' ? heldL : heldV) || 0;
+    const rows = R.res.hand[s].map(x => {
+      const c = cardById(x.id) || {}, val = x.alive && x.bank ? fmtBank(x.bank) : (x.alive ? '·' : '✕');
+      return `<div class="brline sub${x.alive ? '' : ' dead'}"><span>${esc(c.name || x.id)}${x.note ? ` <em>(${esc(x.note)})</em>` : ''}</span><span>${val}</span></div>`;
+    }).join('') || '<div class="brline sub"><span>no orders</span><span>—</span></div>';
+    return `<div class="brside ${s === 'lech' ? 'lech' : 'vin'}">
+      <div class="brline hd"><span>${SIDES[s].short}</span><span>held ${held}:00</span></div>
+      ${rows}
+      <div class="brline tot"><span>+ banked</span><span>${fmtBank(R.res.banked[s])}</span></div>
+      <div class="brline tot"><span>= total</span><span>${fmtDur(s === 'lech' ? R.totalL : R.totalV)}</span></div></div>`;
+  };
+  const verdict = R.victor === 'stalemate' ? 'Inconclusive — dead level'
+    : `${SIDES[R.victor].name} hold ${R.marginMin} min longer → tracker +${R.scale} ${SIDES[R.victor].short}`;
+  return `<div class="brsides">${side('vindex')}${side('lech')}</div>
+    <div class="brfinal ${R.victor}">${esc(verdict)}</div>`;
+}
+
+/* ══════════ THE BATTLE BAR ══════════ */
+// When a battle is, written the way a person would say it. The time is given in
+// the zone it was set in — that is the announcement everybody was told — and the
+// viewer's own clock is added only when it actually differs, so nobody has to do
+// the conversion in their head and nobody reads a second time for nothing.
+function whenText(b) {
+  const inst = startInstantOf(b);
+  if (!inst) return '';
+  const tz = b.startTz || DEFAULT_TZ;
+  const day = inst.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+  const setClock = fmtClock(b.startTime) + ' ' + zoneAbbr(tz, inst);
+  let mine = '';
+  try {
+    const local = inst.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+      .replace(/ /g, ' ').toUpperCase();
+    if (local.replace(/\s/g, '') !== fmtClock(b.startTime).replace(/\s/g, '').toUpperCase())
+      mine = ` <em>(${esc(local)} your time)</em>`;
+  } catch (e) {}
+  return `${day} at <b>${esc(setClock)}</b>${mine}`;
+}
+function renderBattleBar() {
+  const sec = $('nextBattle');
+  if (!sec) return;
+  const b = focusBattle();
+  if (!b) {
+    if (!canBattles) { sec.hidden = true; sec.innerHTML = ''; return; }
+    sec.hidden = false;
+    sec.innerHTML = `<span class="nb-lbl">NEXT BATTLE</span>
+      <span class="nb-when">None scheduled — add one in the battle log.</span>`;
+    return;
+  }
+  sec.hidden = false;
+  const live = phaseOf(b) === 'live';
+  const sl = standing(b.id, 'lech'), sv = standing(b.id, 'vindex');
+  const mine = myCombatant(b);
+
+  const tally = s => {
+    const st = s === 'lech' ? sl : sv;
+    return `<span class="side-count ${SIDES[s].cls}${st.over > 0 ? ' over' : ''}">
+      ${SIDES[s].short} <b>${st.active}</b> in / ${st.present} present
+      <em>${st.capped ? 'max ' + st.cap : 'no cap'}</em></span>`;
+  };
+  // The one line a player actually needs: am I fighting, or am I at base?
+  let you = '';
+  if (mine) {
+    const benched = mine.m.status === 'benched';
+    const bench = rosterFor(b.id, mine.side).benchLocation;
+    you = `<span class="nb-you ${benched ? 'out' : 'in'}">
+      ${benched ? '⛔ YOU ARE BENCHED — STAY AT BASE' : '⚔ YOU ARE IN — FIGHT'}
+      ${benched && bench ? `<em>${esc(bench)}</em>` : ''}</span>`;
+  }
+  let alert = '';
+  ['vindex', 'lech'].forEach(s => {
+    const st = s === 'lech' ? sl : sv;
+    if (st.over > 0) alert += `<span class="nb-over">⚠ ${SIDES[s].short} OVER CAP — BENCH ${st.over} NOW</span>`;
+  });
+
+  sec.innerHTML =
+    `<span class="nb-lbl${live ? ' livelbl' : ''}">${live ? '● BATTLE UNDER WAY' : 'NEXT BATTLE'}</span>
+     <span class="nb-name">${esc(b.name || 'Unnamed engagement')}</span>
+     <button type="button" class="btn roster" id="btnRoster">Roster</button>` +
+    (live ? `<div class="nb-tallies">${tally('vindex')}${tally('lech')}</div>`
+          : `<span class="nb-when">${whenText(b)}</span>`) +
+    alert + you;
+
+  $('btnRoster').addEventListener('click', () => openRoster(b.id));
+}
+
+/* ══════════ THE ROSTER ROOM ══════════ */
+let rosterBattleId = null;
+function openRoster(id) {
+  rosterBattleId = id;
+  $('rosterOverlay').classList.add('show');
+  renderRoster();
+}
+function closeRoster() { $('rosterOverlay').classList.remove('show'); rosterBattleId = null; }
+
+function rosterColumn(b, side) {
+  const S = SIDES[side], st = standing(b.id, side), r = st.own;
+  const mayWork = canWorkRoster(side, b.id) && phaseOf(b) !== 'concluded';
+  const mayAppoint = isCommandFor(side) && phaseOf(b) !== 'concluded';
+  const so = r.strategyOfficer ? displayNameOf(r.strategyOfficer) : '';
+  const list = membersOf(r).slice().sort((a, c) =>
+    (a.status === 'benched' ? 1 : 0) - (c.status === 'benched' ? 1 : 0) ||
+    String(a.name || '').localeCompare(String(c.name || '')));
+  const inList = list.filter(m => m.status !== 'benched');
+  const outList = list.filter(m => m.status === 'benched');
+
+  const card = (m, benched) => {
+    const isMe = account && String(m.username || '').toLowerCase() === String(account.username || '').toLowerCase();
+    const face = m.username || m.name;
+    const blocked = benched && st.slots <= 0;
+    return `<div class="rmem${isMe ? ' me' : ''}">
+      <img class="rface" src="https://mc-heads.net/avatar/${encodeURIComponent(face)}/28" alt=""/>
+      <span class="rname">${esc(m.name)}${isMe ? ' <em>(you)</em>' : ''}</span>
+      ${mayWork ? `<button type="button" class="btn rbtn" data-act="${benched ? 'in' : 'out'}" data-id="${esc(m.id)}"
+        ${blocked ? 'disabled title="At the cap — nobody may be tapped in"' : ''}>${benched ? 'Tap in' : 'Bench'}</button>
+        <button type="button" class="btn rbtn danger" data-act="rm" data-id="${esc(m.id)}" title="They have left the battle">✕</button>` : ''}
+    </div>`;
+  };
+
+  return `<section class="rcol ${S.cls}">
+    <header class="rhead">
+      <span class="rside">${S.name}</span>
+      <span class="rcount${st.over > 0 ? ' over' : ''}"><b>${st.active}</b> in · ${st.present} present
+        · ${st.capped ? 'max <b>' + st.cap + '</b>' : 'no cap'}</span>
+    </header>
+    ${st.over > 0 ? `<div class="rover">⚠ OVER CAP — BENCH ${st.over} MORE</div>` : ''}
+    ${st.capped && st.over === 0 && st.slots > 0 && st.slots !== Infinity
+      ? `<div class="rslots">${st.slots} slot${st.slots === 1 ? '' : 's'} open</div>` : ''}
+    ${!st.capped ? `<div class="rslots">Opponent has fewer than ${CAP_MIN_SIDE} present — no cap applies</div>` : ''}
+    ${(() => {
+      // Read-only for everyone but this nation's war command.
+      if (!mayAppoint) return `<div class="rmeta"><span>Strategy Officer: <b>${so ? esc(so) : '—'}</b></span></div>`;
+      const officers = eligibleOfficers(side);
+      const held = r.strategyOfficer;
+      const listed = officers.some(o => sameUser(o.username, held));
+      if (!officers.length && !held) {
+        return `<div class="rmeta"><span>Strategy Officer</span>
+          <em class="rnone">no commissioned officers on the roll</em></div>
+          <div class="rnote">Only officers of the ${esc(MILITARY[side].label)} may be appointed.
+            Commission somebody on <b>${esc(MILITARY[side].site)}</b> and they will appear here.</div>`;
+      }
+      return `<div class="rmeta">
+        <span>Strategy Officer</span>
+        <select class="rso" data-so="${side}">
+          <option value="">— nobody —</option>
+          ${officers.map(o => `<option value="${esc(o.username)}"${sameUser(o.username, held) ? ' selected' : ''}
+            >${esc(o.abbr)} ${esc(o.name)}</option>`).join('')}
+          ${held && !listed
+            ? `<option value="${esc(held)}" selected>${esc(displayNameOf(held) || held)} — no longer commissioned</option>`
+            : ''}
+        </select>
+      </div>`;
+    })()}
+    <div class="rmeta">
+      <span>Bench: <b>${r.benchLocation ? esc(r.benchLocation) : '—'}</b></span>
+      ${mayWork ? `<button type="button" class="btn rbtn" data-bench="${side}">Set</button>` : ''}
+    </div>
+    <div class="rgroup"><div class="rglbl in">IN THE FIGHT — ${inList.length}</div>
+      ${inList.length ? inList.map(m => card(m, false)).join('') : '<div class="rempty">nobody</div>'}</div>
+    <div class="rgroup"><div class="rglbl out">BENCHED — ${outList.length}</div>
+      ${outList.length ? outList.map(m => card(m, true)).join('') : '<div class="rempty">nobody</div>'}</div>
+    ${mayWork ? `<form class="radd" data-side="${side}">
+      <input type="text" placeholder="Add a combatant…" list="accountNames" required/>
+      <button type="submit" class="btn">Add</button>
+    </form>` : ''}
+    ${outList.length && presentOf(r) >= CAP_MIN_SIDE ? `<div class="rnote">Benched players still count toward
+      your present total, so they keep the enemy's cap where it is. Remove anyone who has actually left.</div>` : ''}
+    ${ordersBlock(b, side)}
+    <div class="rstamp">${r.updatedAt ? 'updated ' + fmtAgo(r.updatedAt) : 'no changes yet'}</div>
+  </section>`;
+}
+
+function fmtAgo(ts) {
+  const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  return Math.floor(s / 86400) + 'd ago';
+}
+
+function renderRoster() {
+  const ov = $('rosterOverlay');
+  if (!ov.classList.contains('show')) return;
+  const b = battles.find(x => x.id === rosterBattleId);
+  if (!b) { closeRoster(); return; }
+  const ph = PHASES[phaseOf(b)] || PHASES.scheduled;
+  $('rosterBox').innerHTML = `
+    <div class="rtop">
+      <div>
+        <div class="rttl">${esc(b.name || 'Unnamed engagement')}</div>
+        <div class="rsub"><span class="phase ${ph.cls}">${ph.label}</span>
+          ${b.location ? ' · ' + esc(b.location) : ''}${b.world ? ' · ' + esc(b.world) : ''}</div>
+      </div>
+      <button type="button" class="btn" id="rosterClose">Close ✕</button>
+    </div>
+    <div class="rrule">The larger side may field at most <b>125%</b> of the smaller side's total present,
+      rounded down. Under ${CAP_MIN_SIDE} present, no cap applies.</div>
+    <div class="rcols">${rosterColumn(b, 'vindex')}${rosterColumn(b, 'lech')}</div>`;
+
+  $('rosterClose').addEventListener('click', closeRoster);
+
+  // in / bench / remove
+  $('rosterBox').querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('click', async () => {
+    const side = btn.closest('.rcol').classList.contains('vin') ? 'vindex' : 'lech';
+    if (!canWorkRoster(side, b.id)) return;
+    const r = JSON.parse(JSON.stringify(rosterFor(b.id, side)));
+    const i = membersOf(r).findIndex(m => m.id === btn.dataset.id);
+    if (i < 0) return;
+    if (btn.dataset.act === 'rm') r.members.splice(i, 1);
+    else {
+      const goingIn = btn.dataset.act === 'in';
+      if (goingIn && standing(b.id, side).slots <= 0) { toast('At the cap — bench somebody first.'); return; }
+      r.members[i].status = goingIn ? 'in' : 'benched';
+      r.members[i].since = Date.now();
+    }
+    await persistRoster(r);
+    renderRoster(); renderBattleBar();
+  }));
+
+  // add a combatant
+  $('rosterBox').querySelectorAll('.radd').forEach(f => f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const side = f.dataset.side;
+    if (!canWorkRoster(side, b.id)) return;
+    const input = f.querySelector('input');
+    const typed = input.value.trim();
+    if (!typed) return;
+    const r = JSON.parse(JSON.stringify(rosterFor(b.id, side)));
+    if (!Array.isArray(r.members)) r.members = [];
+    // Match a real account where we can, so the player's own status banner works.
+    const acc = Object.values(accountsDir).find(a =>
+      String(a.username || '').toLowerCase() === typed.toLowerCase() ||
+      String(a.displayName || '').toLowerCase() === typed.toLowerCase());
+    const username = acc ? String(acc.username || '').toLowerCase() : '';
+    if (username && membersOf(r).some(m => String(m.username || '').toLowerCase() === username)) {
+      toast('Already on the roster.'); input.value = ''; return;
+    }
+    r.members.push({ id: 'c_' + uid(), name: acc ? (acc.displayName || acc.username) : typed,
+      username: username, status: 'in', since: Date.now() });
+    // Someone added beyond the cap starts on the bench rather than illegally in.
+    const st = standing(b.id, side);
+    if (st.capped && inOf(r) > st.cap) r.members[r.members.length - 1].status = 'benched';
+    input.value = '';
+    await persistRoster(r);
+    renderRoster(); renderBattleBar();
+  }));
+
+  // appoint a Strategy Officer from that nation's commissioned officers
+  $('rosterBox').querySelectorAll('[data-so]').forEach(sel => sel.addEventListener('change', async () => {
+    const side = sel.dataset.so;
+    if (!isCommandFor(side)) return;
+    const r = JSON.parse(JSON.stringify(rosterFor(b.id, side)));
+    r.strategyOfficer = String(sel.value || '').trim().toLowerCase();
+    const res = await persistRoster(r);
+    if (res.ok) toast(r.strategyOfficer
+      ? (displayNameOf(r.strategyOfficer) || r.strategyOfficer) + ' has the bench.'
+      : 'Strategy Officer cleared.');
+    renderRoster(); renderBattleBar();
+  }));
+  $('rosterBox').querySelectorAll('[data-bench]').forEach(btn => btn.addEventListener('click', async () => {
+    const side = btn.dataset.bench;
+    if (!canWorkRoster(side, b.id)) return;
+    const r = JSON.parse(JSON.stringify(rosterFor(b.id, side)));
+    const where = prompt('Where do benched ' + SIDES[side].short + ' players wait?', r.benchLocation || '');
+    if (where === null) return;
+    r.benchLocation = String(where || '').trim();
+    await persistRoster(r);
+    renderRoster(); renderBattleBar();
+  }));
+
+  // ── battle orders (cards) ──
+  $('rosterBox').querySelectorAll('[data-addcard]').forEach(btn => btn.addEventListener('click', () => {
+    draftPicker = draftPicker === btn.dataset.addcard ? null : btn.dataset.addcard;
+    renderRoster();
+  }));
+  $('rosterBox').querySelectorAll('[data-pickclose]').forEach(btn => btn.addEventListener('click', () => {
+    draftPicker = null; renderRoster();
+  }));
+  $('rosterBox').querySelectorAll('[data-pick]').forEach(btn => btn.addEventListener('click', async () => {
+    const side = btn.dataset.side;
+    if (!canWorkRoster(side, b.id) || phaseOf(b) !== 'scheduled') return;
+    const r = JSON.parse(JSON.stringify(rosterFor(b.id, side)));
+    if (r.sealed) { toast('Unseal the orders first.'); return; }
+    const c = cardById(btn.dataset.pick); if (!c) return;
+    const reason = cardBlockedReason(side, b, c, r);
+    if (reason) { toast(reason); return; }
+    if (!Array.isArray(r.cards)) r.cards = [];
+    r.cards.push(c.id);
+    await persistRoster(r); renderRoster();
+  }));
+  $('rosterBox').querySelectorAll('[data-rmcard]').forEach(btn => btn.addEventListener('click', async () => {
+    const side = btn.dataset.side;
+    if (!canWorkRoster(side, b.id) || phaseOf(b) !== 'scheduled') return;
+    const r = JSON.parse(JSON.stringify(rosterFor(b.id, side)));
+    r.cards = rosterCards(r).filter(id => id !== btn.dataset.rmcard);
+    await persistRoster(r); renderRoster();
+  }));
+  $('rosterBox').querySelectorAll('[data-seal]').forEach(btn => btn.addEventListener('click', async () => {
+    const side = btn.dataset.seal;
+    if (!canWorkRoster(side, b.id)) return;
+    const r = JSON.parse(JSON.stringify(rosterFor(b.id, side)));
+    if (!rosterCards(r).length) { toast('Draft at least one order first.'); return; }
+    r.sealed = true; draftPicker = null;
+    await persistRoster(r); toast('Orders sealed.'); renderRoster();
+  }));
+  $('rosterBox').querySelectorAll('[data-unseal]').forEach(btn => btn.addEventListener('click', async () => {
+    const side = btn.dataset.unseal;
+    if (!canWorkRoster(side, b.id)) return;
+    const r = JSON.parse(JSON.stringify(rosterFor(b.id, side)));
+    r.sealed = false;
+    await persistRoster(r); renderRoster();
+  }));
+}
+function renderBattles() {
+  const list = $('battleList');
+  if (!battles.length) {
+    list.innerHTML = `<div class="empty-note">No battles recorded.<br/>Each result moves the war tracker toward one capital or the other.</div>`;
+    return;
+  }
+  list.innerHTML = '';
+  // Anything still to come or under way sits at the top; the settled record runs
+  // newest-first beneath it.
+  const pending = battles.filter(b => phaseOf(b) !== 'concluded')
+    .sort((a, c) => (phaseOf(a) === 'live' ? 0 : 1) - (phaseOf(c) === 'live' ? 0 : 1));
+  const done = concludedBattles().slice().reverse();
+  [].concat(pending, done).forEach(b => {
+    const ph = phaseOf(b), P = PHASES[ph] || PHASES.scheduled;
+    const settled = ph === 'concluded';
+    const sc = settled ? battleScore(b) : 0;
+    const inst = startInstantOf(b);
+    const sl = standing(b.id, 'lech'), sv = standing(b.id, 'vindex');
+    const card = document.createElement('div');
+    card.className = 'bcard ' + (settled ? b.victor : ph);
+    const by = b._writtenBy ? `<div class="bcard-by">recorded by ${esc(displayNameOf(b._writtenBy))}</div>` : '';
+    card.innerHTML = `
+      <div class="bcard-top">
+        <span class="bcard-name">${esc(b.name)}</span>
+        ${settled
+          ? `<span class="bcard-pts ${b.victor}">${sc === 0 ? '±0' : (sc > 0 ? `+${sc} LECH` : `+${-sc} VINDEX`)}</span>`
+          : `<span class="phase ${P.cls}">${P.label}</span>`}
+      </div>
+      <div class="bcard-meta">${esc(b.date || '')}${inst && !settled ? ' · ' + esc(fmtClock(b.startTime)) + ' ' + esc(zoneAbbr(b.startTz || DEFAULT_TZ, inst)) : ''}${b.world ? ' · ' + esc(b.world) : ''}${b.location ? ' · ' + esc(b.location) : ''}${settled ? ' · ' + (SCALES[b.scale] || '') : ''}</div>
+      ${!settled ? `<div class="bcard-meta">VINDEX ${sv.active}/${sv.present}${sv.capped ? ' · max ' + sv.cap : ''}
+        &nbsp;·&nbsp; LECH ${sl.active}/${sl.present}${sl.capped ? ' · max ' + sl.cap : ''}</div>` : ''}
+      ${b.notes ? `<div class="bcard-notes">${esc(b.notes)}</div>` : ''}
+      ${by}
+      <div class="bcard-btns">
+        <button type="button" class="btn" data-act="roster">Roster</button>
+        ${canBattles && ph === 'scheduled' ? `<button type="button" class="btn primary" data-act="golive">Open the fight</button>` : ''}
+        ${canBattles && ph === 'live' ? `<button type="button" class="btn primary" data-act="result">Record the result</button>` : ''}
+        ${canBattles && ph === 'concluded' ? `<button type="button" class="btn" data-act="result">Amend result</button>
+        <button type="button" class="btn" data-act="reopen">Reopen</button>` : ''}
+        ${canBattles ? `<button type="button" class="btn" data-act="edit">edit</button>
+        <button type="button" class="btn danger" data-act="del">✕</button>` : ''}
+      </div>
+      <div class="bresult" hidden>
+        <div class="brl">HELD TIME — minutes each side controlled the point (of 30)</div>
+        <div class="brtime">
+          <label class="vin">Vindex <input type="number" class="brheld" data-side="vindex" min="0" max="30" step="1"/></label>
+          <label class="lech">Lech <input type="number" class="brheld" data-side="lech" min="0" max="30" step="1"/></label>
+        </div>
+        <div class="brorders"></div>
+        <div class="brfoot">
+          <button type="button" class="btn" data-act="rcancel">Cancel</button>
+          <button type="button" class="btn primary" data-act="rsave">Confirm result</button>
+        </div>
+      </div>`;
+    card.querySelector('[data-act="roster"]').addEventListener('click', () => openRoster(b.id));
+    if (canBattles) {
+      const setPhase = async (to, extra) => {
+        Object.assign(b, extra || {}, { phase: to });
+        if (to === 'live') b.liveAt = Date.now();
+        if (to === 'concluded') b.concludedAt = Date.now();
+        renderBattles(); renderTracker(); renderBattleBar();
+        await persistBattle(b);
+      };
+      const golive = card.querySelector('[data-act="golive"]');
+      if (golive) golive.addEventListener('click', () => {
+        setPhase('live'); toast('The fight is open — the cap is now enforced.');
+      });
+      // The result is chosen here, when the fighting is over — never on the form
+      // that schedules a battle that has not happened yet.
+      const panel = card.querySelector('.bresult');
+      const heldInput = s => panel.querySelector('.brheld[data-side="' + s + '"]');
+      // Seed from the frozen result if amending, else a level 15/15 split.
+      heldInput('lech').value = b.heldLech != null ? b.heldLech : 15;
+      heldInput('vindex').value = b.heldVindex != null ? b.heldVindex : 15;
+      const paint = () => {
+        const hl = +heldInput('lech').value || 0, hv = +heldInput('vindex').value || 0;
+        panel.querySelector('.brorders').innerHTML = resolutionSummaryHTML(b, hl, hv);
+      };
+      panel.querySelectorAll('.brheld').forEach(x => x.addEventListener('input', paint));
+      const resBtn = card.querySelector('[data-act="result"]');
+      if (resBtn) resBtn.addEventListener('click', () => { panel.hidden = !panel.hidden; if (!panel.hidden) paint(); });
+      card.querySelector('[data-act="rcancel"]').addEventListener('click', () => { panel.hidden = true; });
+      card.querySelector('[data-act="rsave"]').addEventListener('click', () => {
+        const hl = +heldInput('lech').value || 0, hv = +heldInput('vindex').value || 0;
+        const R = finalResult(b, hl, hv);
+        panel.hidden = true;
+        setPhase('concluded', {
+          victor: R.victor, scale: R.scale, heldLech: hl, heldVindex: hv,
+          resolution: {
+            banked: R.res.banked, marginMin: R.marginMin,
+            hands: {
+              lech: R.res.hand.lech.map(x => ({ id: x.id, bank: x.bank, alive: x.alive, note: x.note })),
+              vindex: R.res.hand.vindex.map(x => ({ id: x.id, bank: x.bank, alive: x.alive, note: x.note })),
+            },
+          },
+        });
+        toast(R.victor === 'stalemate' ? 'Recorded as inconclusive.' : SIDES[R.victor].name + ' win — the roster is frozen.');
+      });
+      const reop = card.querySelector('[data-act="reopen"]');
+      if (reop) reop.addEventListener('click', () => setPhase('live'));
+      card.querySelector('[data-act="del"]').addEventListener('click', async () => {
+        if (!confirm(`Remove “${b.name}” from the record?`)) return;
+        battles = battles.filter(x => x.id !== b.id);
+        renderBattles(); renderTracker();
+        noteSaving();
+        const res = await deleteRecord('lvwar_battles', b.id);
+        noteSaved(res.ok, res.error);
+      });
+      card.querySelector('[data-act="edit"]').addEventListener('click', () => {
+        editingBattleId = b.id;
+        $('bfName').value = b.name; $('bfDate').value = b.date || '';
+        $('bfWorld').value = b.world || ''; $('bfLocation').value = b.location || '';
+        $('bfNotes').value = b.notes || '';
+        $('bfTime').value = b.startTime || ''; $('bfTz').value = b.startTz || DEFAULT_TZ;
+        fillBattleGrants(b);
+        $('bfTitle').textContent = 'EDIT BATTLE';
+        $('bfSubmit').textContent = 'Update';
+        $('bfCancel').style.display = '';
+        $('bfName').focus();
+      });
+    }
+    list.appendChild(card);
+  });
+}
+
+function renderBattleWorldOptions() {
+  const cur = $('bfWorld').value;
+  $('bfWorld').innerHTML = '<option value="">— world —</option>' +
+    meta.theatres.map(th => `<option>${esc(th.name)}</option>`).join('') +
+    '<option>Other</option>';
+  $('bfWorld').value = cur;
+  const curTz = $('bfTz').value;
+  $('bfTz').innerHTML = US_ZONES.map(z => `<option value="${esc(z.tz)}">${esc(z.label)}</option>`).join('');
+  $('bfTz').value = curTz || DEFAULT_TZ;
+}
+// The battle grants the admin ticks — read into and out of the schedule form.
+function readBattleGrants() {
+  return {
+    lech: { naval: $('bgNavalL').checked, air: $('bgAirL').checked },
+    vindex: { naval: $('bgNavalV').checked, air: $('bgAirV').checked },
+    defender: $('bgDefender').value,
+  };
+}
+function fillBattleGrants(b) {
+  const g = (b && b.grants) || {};
+  $('bgNavalL').checked = !!(g.lech && g.lech.naval);
+  $('bgNavalV').checked = !!(g.vindex && g.vindex.naval);
+  $('bgAirL').checked = !!(g.lech && g.lech.air);
+  $('bgAirV').checked = !!(g.vindex && g.vindex.air);
+  $('bgDefender').value = g.defender || '';
+}
+function resetBattleForm() {
+  editingBattleId = null;
+  $('battleForm').reset();
+  $('bfDate').value = new Date().toISOString().slice(0, 10);
+  $('bfTz').value = DEFAULT_TZ;
+  $('bfTitle').textContent = 'SCHEDULE A BATTLE';
+  $('bfSubmit').textContent = 'Add Battle';
+  $('bfCancel').style.display = 'none';
+}
+$('battleForm').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!canBattles) return;
+  const data = {
+    name: $('bfName').value.trim() || 'Unnamed engagement',
+    date: $('bfDate').value,
+    startDate: $('bfDate').value,
+    startTime: $('bfTime').value,
+    startTz: $('bfTz').value || DEFAULT_TZ,
+    world: $('bfWorld').value,
+    location: $('bfLocation').value.trim(),
+    grants: readBattleGrants(),
+    notes: $('bfNotes').value.trim(),
+  };
+  let rec;
+  if (editingBattleId) {
+    rec = battles.find(x => x.id === editingBattleId);
+    if (rec) Object.assign(rec, data);
+  } else {
+    // A new battle is scheduled, not settled — its victor is only meaningful once
+    // it has actually been concluded.
+    rec = { id: 'bat_' + uid(), at: Date.now(), phase: 'scheduled', ...data };
+    battles.push(rec);
+  }
+  resetBattleForm();
+  renderBattles(); renderTracker(); renderBattleBar();
+  if (rec) persistBattle(rec);
+});
+$('bfCancel').addEventListener('click', resetBattleForm);
+
+$('threshold').addEventListener('change', () => {
+  if (!canMeta) return;
+  meta.threshold = clamp(+$('threshold').value || 10, 3, 50);
+  renderTracker(); persistMetaDebounced();
+});
+
+/* ══════════ COMMAND STRIP (flags & leadership) ══════════ */
+// Resolve a bare name or username from bk_officials against the account
+// directory, the same way the server's holdsNamedOffice matches.
+function resolveAccount(nameOrUser) {
+  const bare = String(nameOrUser || '').trim().toLowerCase();
+  if (!bare || bare === 'vacant') return null;
+  if (accountsDir[bare]) return accountsDir[bare];
+  return Object.values(accountsDir).find(a =>
+    String(a.displayName || '').toLowerCase() === bare) || { displayName: nameOrUser };
+}
+function lechLeaders() {
+  const accs = Object.values(accountsDir);
+  const emperor = accs.find(a => a.role === 'emperor') || null;
+  const off = bkOfficials || {};
+  const chancellor = off.chancellor_username
+    ? (accountsDir[String(off.chancellor_username).toLowerCase()] || { username: off.chancellor_username })
+    : resolveAccount(off.chancellor);
+  let minWar = null;
+  const mus = off.minister_usernames || {};
+  for (const k of Object.keys(mus)) if (/war/i.test(k) && mus[k]) {
+    minWar = accountsDir[String(mus[k]).toLowerCase()] || { username: mus[k] };
+    break;
+  }
+  if (!minWar) {
+    const ms = off.ministers || {};
+    for (const k of Object.keys(ms)) if (/war/i.test(k)) { minWar = resolveAccount(ms[k]); if (minWar) break; }
+  }
+  if (!minWar) minWar = accs.find(a => a.mowRole === 'minister') || null;
+  return [
+    { title: 'EMPEROR', acc: emperor, nameOverride: 'Emperor Edward I' },
+    { title: 'CHANCELLOR', acc: chancellor },
+    { title: 'MINISTER OF WAR', acc: minWar },
+  ];
+}
+function vindexLeaders() {
+  const accs = Object.values(accountsDir);
+  const pres = accs.find(a => String(a.vxRole || '') === 'president') || null;
+  const vp = accs.find(a => String(a.vxRole || '') === 'vice_president') || null;
+  let secdef = null;
+  for (const [u, post] of Object.entries((vxGov && vxGov.cabinet) || {})) {
+    if (/^secretary of defen[cs]e$/i.test(String(post || '').trim())) {
+      secdef = accountsDir[String(u).toLowerCase()] || { username: u };
+      break;
+    }
+  }
+  return [
+    { title: 'PRESIDENT', acc: pres },
+    { title: 'VICE PRESIDENT', acc: vp },
+    { title: 'SEC. OF DEFENSE', acc: secdef },
+  ];
+}
+function leaderHTML(l) {
+  const name = l.nameOverride || (l.acc && (l.acc.displayName || l.acc.username)) || 'Vacant';
+  const face = l.acc && (l.acc.mcName || l.acc.username);
+  const head = face
+    ? `<img class="head" src="https://mc-heads.net/avatar/${encodeURIComponent(face)}/44" alt=""/>`
+    : `<span class="head vacant">·</span>`;
+  return `<div class="leader${l.acc ? '' : ' isvacant'}">${head}<div><div class="l-title">${l.title}</div><div class="l-name">${esc(name)}</div></div></div>`;
+}
+// Leadership no longer takes a whole strip across the page. Each country's crest
+// in the header opens it instead, so the war itself gets the room.
+function openLeaders(side) {
+  const box = $('leadersBox');
+  const isLech = side === 'lech';
+  box.className = isLech ? 'lech' : 'vindex';
+  box.innerHTML = `
+    <div class="ldr-top">
+      <span class="ldr-title">${isLech ? 'Empire of Lech' : 'Republic of Vindex'}</span>
+      <button type="button" class="ldr-x" id="ldrClose" title="Close">✕</button>
+    </div>
+    <div class="ldr-sub">Those who command in this war</div>
+    ${(isLech ? lechLeaders() : vindexLeaders()).map(leaderHTML).join('')}`;
+  $('leadersOverlay').classList.add('show');
+  $('ldrClose').addEventListener('click', closeLeaders);
+}
+function closeLeaders() { $('leadersOverlay').classList.remove('show'); }
+document.querySelectorAll('.crest').forEach(btn =>
+  btn.addEventListener('click', () => openLeaders(btn.dataset.crest)));
+$('leadersOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeLeaders(); });
+
+// A crest image only appears if the file is actually there; otherwise the button
+// stands on its name alone rather than showing a broken picture.
+function mountCrests() {
+  document.querySelectorAll('.crest-img').forEach(host => {
+    if (host.dataset.done) return;
+    host.dataset.done = '1';
+    const sources = String(host.dataset.src || '').split(',').filter(Boolean);
+    (function tryNext(i) {
+      if (i >= sources.length) return;                 // none of them exist — leave it hidden
+      const probe = new Image();
+      probe.onload = () => { host.style.backgroundImage = `url("${sources[i]}")`; host.classList.add('ok'); };
+      probe.onerror = () => tryNext(i + 1);
+      probe.src = sources[i];
+    })(0);
+  });
+}
+mountCrests();
+
+/* ══════════ LEGEND ══════════ */
+function renderLegend() {
+  $('legend').innerHTML = Object.values(STATUS).map(v => {
+    const bg = v.fill.startsWith('url')
+      ? `repeating-linear-gradient(45deg, ${v.stroke}66, ${v.stroke}66 3px, transparent 3px, transparent 6px), rgba(255,255,255,.04)`
+      : v.fill;
+    return `<div class="lrow"><span class="sw" style="background:${bg}"></span>${v.label}</div>`;
+  }).join('');
+}
+
+/* ══════════ TABS / HEADER / TOOLBAR ══════════ */
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+}
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+
+$('warTitle').addEventListener('input', () => { if (canMeta) { meta.warName = $('warTitle').textContent.trim(); persistMetaDebounced(); } });
+$('warSub').addEventListener('input', () => { if (canMeta) { meta.warSub = $('warSub').textContent.trim(); persistMetaDebounced(); } });
+[$('warTitle'), $('warSub')].forEach(n => n.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); n.blur(); } }));
+
+$('btnSidebar').addEventListener('click', () => $('sidebar').classList.toggle('hidden'));
+$('modeSelect').addEventListener('click', () => setMode('select'));
+$('modeDraw').addEventListener('click', () => setMode(mode === 'draw' ? 'select' : 'draw'));
+$('btnFinish').addEventListener('click', finishDraw);
+$('btnCancelDraw').addEventListener('click', cancelDraw);
+$('btnFit').addEventListener('click', fitMap);
+$('btnZoomIn').addEventListener('click', () => { const r = viewport.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.3); });
+$('btnZoomOut').addEventListener('click', () => { const r = viewport.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.3); });
+$('opacity').addEventListener('input', renderMap);
+
+/* export / reset */
+$('btnExport').addEventListener('click', () => {
+  const payload = { app: 'lvwar', version: 2, savedAt: new Date().toISOString(), meta, territories, battles };
+  const blob = new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (meta.warName || 'war').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('War record exported.');
+});
+$('btnReset').addEventListener('click', async () => {
+  if (!canMeta) return;
+  if (!confirm('Erase the entire war record — borders, battles and configuration — for EVERYONE?')) return;
+  if (!confirm('This cannot be undone. Really erase the shared war record?')) return;
+  noteSaving();
+  const r1 = await sdel('lvwar_territories');
+  const r2 = await sdel('lvwar_battles');
+  const r3 = await sdel('lvwar_meta');
+  noteSaved(r1.ok && r2.ok && r3.ok, r1.error || r2.error || r3.error);
+  territories = []; battles = []; meta = JSON.parse(JSON.stringify(DEFAULT_META));
+  selectedId = null;
+  renderAll();
+  toast('The war record has been erased.');
+});
+
+/* ══════════ BOOT ══════════ */
+function renderAll() {
+  $('warTitle').textContent = meta.warName;
+  $('warSub').textContent = meta.warSub;
+  renderBattleBar();
+  renderTheatreTabs(); renderBattleWorldOptions();
+  renderLegend(); renderTracker(); renderBattles(); renderTerritories(); renderMap();
+  renderFieldManual(); renderWarDeck();
+  applySidebarVisibility();
+  renderAccountNames();
+  renderRoster();
+}
+
+/* ══════════ FIELD MANUAL — the plain-English explainer ══════════ */
+// One card face, shared by the manual and the deck editor's read view.
+function cardFaceHTML(c) {
+  const bm = branchMeta(c.branch);
+  const bank = c.time ? `<span class="cbank">${fmtBank(c.time)}</span>` : '';
+  const foe = c.counter && cardById(c.counter) ? `<div class="cneed">Countered by ${esc(cardById(c.counter).name)}.</div>` : '';
+  return `<div class="ccard" style="border-left-color:${bm.color}">
+    <div class="ctop"><span class="cname">${esc(c.name)}</span>${bank}<span class="cbadge">${c.cost} pt${c.cost === 1 ? '' : 's'}</span></div>
+    <div class="ceff">${esc(c.effect || '')}</div>
+    <div class="cneed">${esc(needText(c))}</div>${foe}</div>`;
+}
+function renderFieldManual() {
+  const el = $('panel-manual'); if (!el) return;
+  const wheel = `<div class="wheel">${['air', 'naval', 'ground'].map((b, i) =>
+    `${i ? '<span class="warr">→</span>' : ''}<span class="wchip"><span class="wdot" style="background:${BRANCHES[b].color}"></span>${BRANCHES[b].name}</span>`).join('')}<span class="warr">↺</span></div>
+    <div class="cneed" style="text-align:center;margin-bottom:.4rem;">Each beats the one to its right, and it loops around. Play a card the enemy counters and its bonus is halved.</div>`;
+  const groups = Object.keys(BRANCHES).map(bid => {
+    const cards = cardList().filter(c => c.branch === bid);
+    if (!cards.length) return '';
+    const bm = BRANCHES[bid];
+    return `<div class="brhead"><span class="bdot" style="background:${bm.color}"></span>${bm.name}
+      <span class="bblurb">— ${esc(bm.blurb)}</span></div>${cards.map(cardFaceHTML).join('')}`;
+  }).join('');
+  el.innerHTML = `
+    <div class="fm-lead">New to the war room? <b>This page is the whole game.</b> Read it once and you'll know exactly what to do.</div>
+    <div class="fm-sec">How a battle is won</div>
+    <div class="fm-step"><span class="fm-num">30</span><div class="fmt">Every battle lasts <b>30 minutes</b>.</div></div>
+    <div class="fm-step"><span class="fm-num">65</span><div class="fmt">You <b>hold the point</b> when 65% of the people standing on it are yours. In between, it's contested and nobody's clock runs.</div></div>
+    <div class="fm-step"><span class="fm-num">🏆</span><div class="fmt">Whoever <b>held it longest</b> when the 30 minutes are up wins. Time is the whole game — we count it in seconds.</div></div>
+    <div class="fm-sec">What the cards do</div>
+    <div class="fm-step"><span class="fm-num">＋</span><div class="fmt"><b>Banked time.</b> Some cards just hand you extra held-seconds — a head start on the clock. "+2:00" means two free minutes.</div></div>
+    <div class="fm-step"><span class="fm-num">⚙</span><div class="fmt"><b>Rule benders.</b> Others change the fight — make the enemy need 70% instead of 65%, let you field more troops, or cancel one of their cards.</div></div>
+    <div class="fm-sec">The counter wheel</div>${wheel}
+    <div class="fm-sec">Your job (Strategy Officer)</div>
+    <div class="fm-step"><span class="fm-num">1</span><div class="fmt">You get <b>${CP_BUDGET} command points</b>. Spend them on cards below — you can't take everything, so choose.</div></div>
+    <div class="fm-step"><span class="fm-num">2</span><div class="fmt">Some cards need the right ground — a <b>coast</b> or <b>airfield</b> you hold nearby. If you don't have it, the card is greyed out. That's normal.</div></div>
+    <div class="fm-step"><span class="fm-num">3</span><div class="fmt"><b>Seal your orders</b> before the battle starts. Once sealed they're locked and hidden from the enemy until it's over.</div></div>
+    <div class="fm-sec">Every card</div>${groups}`;
+}
+
+/* ══════════ WAR DECK — the administrator's catalogue editor ══════════ */
+let deckEditing = null;   // null = list · a card object = the edit form
+function deckWorkingMap() { return JSON.parse(JSON.stringify(cardCatalogue())); }
+async function persistDeck(map) {
+  noteSaving();
+  const res = await sset('lvwar_cards', map);
+  noteSaved(res.ok, res.error);
+  if (res.ok) { warCards = map; renderWarDeck(); renderFieldManual(); toast('War deck saved.'); }
+  else toast(res.error || 'Could not save the deck.');
+  return res;
+}
+function renderWarDeck() {
+  const el = $('panel-deck'); if (!el) return;
+  if (!canMeta) { el.innerHTML = '<div class="empty-note">The war deck is kept by network administrators.</div>'; return; }
+  if (deckEditing) { el.innerHTML = deckEditForm(deckEditing); wireDeckForm(); return; }
+  const groups = Object.keys(BRANCHES).map(bid => {
+    const cards = Object.values(cardCatalogue()).filter(c => c && c.branch === bid);
+    if (!cards.length) return '';
+    const bm = BRANCHES[bid];
+    return `<div class="brhead"><span class="bdot" style="background:${bm.color}"></span>${bm.name}</div>` +
+      cards.map(c => `<div class="ccard" style="border-left-color:${bm.color};${c.enabled === false ? 'opacity:.5;' : ''}">
+        <div class="ctop"><span class="cname">${esc(c.name)}</span>${c.time ? `<span class="cbank">${fmtBank(c.time)}</span>` : ''}<span class="cbadge">${c.cost} pt${c.cost === 1 ? '' : 's'}</span></div>
+        <div class="ceff">${esc(c.effect || '')}</div>
+        <div class="deck-row-btns" style="margin-top:.35rem;">
+          <button class="btn" data-dedit="${esc(c.id)}">Edit</button>
+          <button class="btn" data-dtoggle="${esc(c.id)}">${c.enabled === false ? 'Enable' : 'Disable'}</button>
+          <button class="btn danger" data-ddel="${esc(c.id)}">Delete</button>
+        </div></div>`).join('');
+  }).join('');
+  el.innerHTML = `<div class="fm-lead">The shared order catalogue. Both nations draft from this exact list, so it stays balanced. Changes save for everyone.</div>
+    <div class="deck-tools"><button class="btn primary" id="deckNew">+ New card</button>
+    ${Object.keys(warCards).length ? '<button class="btn" id="deckReset">Reset to defaults</button>' : ''}</div>
+    ${groups || '<div class="empty-note">No cards in the deck.</div>'}`;
+  $('deckNew').addEventListener('click', () => {
+    deckEditing = { id: 'card_' + uid(), name: '', branch: 'ground', cost: 2, time: 0, effect: '', needs: null, counter: '', enabled: true, _new: true };
+    renderWarDeck();
+  });
+  const rb = $('deckReset');
+  if (rb) rb.addEventListener('click', async () => {
+    if (!confirm('Reset the whole deck to the built-in defaults? Any custom cards are lost.')) return;
+    await persistDeck(JSON.parse(JSON.stringify(DEFAULT_CARDS)));
+  });
+  el.querySelectorAll('[data-dedit]').forEach(b => b.addEventListener('click', () => {
+    deckEditing = JSON.parse(JSON.stringify(cardById(b.dataset.dedit) || {})); renderWarDeck();
+  }));
+  el.querySelectorAll('[data-dtoggle]').forEach(b => b.addEventListener('click', async () => {
+    const m = deckWorkingMap();
+    const c = m[b.dataset.dtoggle] || JSON.parse(JSON.stringify(cardById(b.dataset.dtoggle)));
+    c.enabled = c.enabled === false; m[c.id] = c; await persistDeck(m);
+  }));
+  el.querySelectorAll('[data-ddel]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Delete this card from the deck?')) return;
+    const m = deckWorkingMap(); delete m[b.dataset.ddel]; await persistDeck(m);
+  }));
+}
+function deckEditForm(c) {
+  const curReq = neededGrant(c) || (c.needs && c.needs.cond === 'officer' ? 'officer' : '');
+  const reqOpts = [['', 'None'], ['naval', 'Needs naval access'], ['air', 'Needs air access'], ['defender', 'Defending side only'], ['officer', 'Needs a Strategy Officer']]
+    .map(([v, l]) => `<option value="${v}"${curReq === v ? ' selected' : ''}>${l}</option>`).join('');
+  const branchOpts = Object.keys(BRANCHES).map(b => `<option value="${b}"${c.branch === b ? ' selected' : ''}>${BRANCHES[b].name}</option>`).join('');
+  const cardOpts = '<option value="">— none —</option>' + cardList().filter(x => x.id !== c.id).map(x => `<option value="${x.id}"${c.counter === x.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('');
+  return `<div class="fm-sec">${c._new ? 'New card' : 'Edit card'}</div>
+   <div class="deck-edit">
+     <div><label class="cneed">Name</label><input id="deName" value="${esc(c.name || '')}" placeholder="Card name"/></div>
+     <div class="deck-grid2">
+       <div><label class="cneed">Branch</label><select id="deBranch">${branchOpts}</select></div>
+       <div><label class="cneed">Cost (points)</label><input id="deCost" type="number" min="0" max="10" value="${c.cost == null ? 2 : c.cost}"/></div>
+     </div>
+     <div><label class="cneed">Banked time — seconds, ± (0 for none)</label><input id="deTime" type="number" step="15" value="${c.time || 0}"/></div>
+     <div><label class="cneed">What it does (plain English)</label><textarea id="deEffect" rows="2" placeholder="e.g. +2:00 held time if you take the field.">${esc(c.effect || '')}</textarea></div>
+     <div class="deck-grid2">
+       <div><label class="cneed">Requirement</label><select id="deReq">${reqOpts}</select></div>
+       <div><label class="cneed">Countered by</label><select id="deCounter">${cardOpts}</select></div>
+     </div>
+     <div class="deck-row-btns"><button class="btn" id="deCancel">Cancel</button><button class="btn primary" id="deSave">Save card</button></div>
+   </div>`;
+}
+function wireDeckForm() {
+  const c = deckEditing;
+  $('deCancel').addEventListener('click', () => { deckEditing = null; renderWarDeck(); });
+  $('deSave').addEventListener('click', async () => {
+    const name = $('deName').value.trim();
+    if (!name) { toast('Give the card a name.'); return; }
+    const rec = { id: c.id, name, branch: $('deBranch').value, cost: Math.max(0, parseInt($('deCost').value) || 0),
+      time: parseInt($('deTime').value) || 0, effect: $('deEffect').value.trim(), counter: $('deCounter').value || '', enabled: c.enabled !== false };
+    const req = $('deReq').value;
+    rec.needs = req === 'officer' ? { cond: 'officer' } : req ? { grant: req } : null;
+    const m = deckWorkingMap(); m[rec.id] = rec;
+    deckEditing = null;
+    await persistDeck(m);
+  });
+}
+// Names the roster's "add a combatant" box can complete against, so a player
+// gets linked to their real account and their own status banner works.
+function renderAccountNames() {
+  const dl = $('accountNames');
+  if (!dl) return;
+  dl.innerHTML = Object.values(accountsDir)
+    .map(a => `<option value="${esc(a.displayName || a.username)}"></option>`).join('');
+}
+window.__war = { get data() { return { meta, territories, battles, account, canTerritory, canBattles, canMeta }; } };
+
+renderAll();
+setMode('select');
+refreshPerms();
+resetBattleForm();
+if (innerWidth < 900) $('sidebar').classList.add('hidden');
+(async () => {
+  // The snapshot download no longer waits behind the session check — the token
+  // is already in hand, so both requests go out together and the map paints as
+  // soon as the data lands.
+  const booting = loadAll();
+  if (token) {
+    const res = await sme();
+    if (res.ok) { saveSession(token, res.account); }
+    else if (res.error !== 'network') { clearSession(); }
+    refreshPerms();
+  }
+  await booting;
+})();
+</script>
+</body>
+</html>
