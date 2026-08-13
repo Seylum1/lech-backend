@@ -494,6 +494,14 @@ app.get("/api/data", async (req, res) => {
           // public tally still ships to everyone, so the count and turnout show,
           // but not a single voter's choice — not even to the Sovereign.
           if (String(d._id).indexOf("wx_el_ballot_") === 0 && !isSysAdmin(actor)) return;
+          // Vwitter direct messages are private to their two participants; an
+          // administrator sees all for moderation, everyone else only their own.
+          if (String(d._id).indexOf("vw_dm_") === 0 && !isSysAdmin(actor)) {
+            const v = d.value || {}, u = actor ? String(actor.username || "").toLowerCase() : "";
+            if (String(v.from || "").toLowerCase() !== u && String(v.to || "").toLowerCase() !== u) return;
+          }
+          // The banned-word list is the administrator's; players never see it.
+          if (String(d._id) === "vw_profanity" && !isSysAdmin(actor)) return;
           out[d._id] = filterPrivateDocs(d._id, d.value, actor, viewerIsPolice);
         });
         return;
@@ -769,6 +777,11 @@ async function authorizeKeyWrite(actor, key) {
   // before this; everything else wx_el_* is the Returning Officer's.
   if (key.indexOf("wx_el_") === 0)
     return isWildenReturningOfficer(actor) ? null : "Requires the Returning Officer (the Sovereign or an administrator)";
+  // Vwitter: posts, messages and profiles are self-authored and intercepted in
+  // /api/set (and their deletes in /api/unset). Anything else vw_* — the office
+  // accounts register above all — is the network administrator's.
+  if (key.indexOf("vw_") === 0)
+    return isSysAdmin(actor) ? null : "Only a network administrator may manage office accounts";
   switch (keyDomain(key)) {
     case "auth": return null;
     case "finance": return hasFinance(actor) ? null : "Requires Ministry of Finance authority";
@@ -917,6 +930,113 @@ async function castWildenBallot(actor, key, value) {
   if (!tally.voted.includes(citizenId)) tally.voted.push(citizenId);
   tally.total = (tally.total || 0) + 1;
   await db.collection("singletons").replaceOne({ _id: tkey }, { _id: tkey, value: tally }, { upsert: true });
+  return null;
+}
+
+// ── Vwitter — the network's social service ────────────────────────────────────
+// Every account is automatically its own handle (@username) and may post, reply,
+// repost and message only AS ITSELF. Some accounts belong to an OFFICE rather than
+// a person: any account currently holding one of the offices the administrator
+// attached to an office account may post as it. The office accounts, and which
+// offices reach them, are the administrator's alone. Direct messages are private
+// to their two participants (redacted from everyone else in the snapshot).
+// Fixed single-holder head-of-state / head-of-government offices, matched on the
+// role field of the shared account. Cabinet and ministerial offices are NOT fixed
+// here: they are individually held and read LIVE from each nation's register, so
+// an office account maps to ONE post, never a whole group. Keep in sync with the
+// copy in vwitter.html.
+const VW_FIXED_OFFICES = [
+  { id: "lech_emperor", label: "Emperor of Lech",          group: "Empire of Lech",     field: "role",   values: ["emperor"] },
+  { id: "vx_president", label: "President of Vindex",       group: "Republic of Vindex", field: "vxRole", values: ["president"] },
+  { id: "vx_vp",        label: "Vice-President of Vindex",  group: "Republic of Vindex", field: "vxRole", values: ["vice_president"] },
+  { id: "vx_speaker",   label: "Speaker of Vindex",        group: "Republic of Vindex", field: "vxRole", values: ["speaker"] },
+  { id: "wx_sovereign", label: "Sovereign of Wilden",      group: "Wilden",             field: "wxRole", values: ["sovereign"] },
+  { id: "wx_pm",        label: "Prime Minister of Wilden", group: "Wilden",             field: "wxRole", values: ["pm"] },
+  { id: "wx_speaker",   label: "Speaker of the Commons",   group: "Wilden",             field: "wxRole", values: ["speaker"] },
+];
+// The registers an office match reads: Lech's officials, and each nation's cabinet.
+async function vwLoadOfficeData() {
+  const g = async id => { const d = await db.collection("singletons").findOne({ _id: id }); return (d && d.value) || {}; };
+  const [bo, vg, wg] = await Promise.all([g("bk_officials"), g("vx_gov"), g("wx_gov")]);
+  return { bk_officials: bo, vx_gov: vg, wx_gov: wg };
+}
+// Does `account` hold the office identified by `id`? Fixed ids match a role field;
+// "lech:chancellor" / "lechmin:<portfolio>" / "cab:<gov>:<post>" match a register.
+function vwOfficeMatches(id, account, data) {
+  if (!account) return false;
+  const u = String(account.username || "").toLowerCase();
+  const f = VW_FIXED_OFFICES.find(o => o.id === id);
+  if (f) return f.values.map(String).includes(String(account[f.field] || ""));
+  if (id === "lech:chancellor") return String(((data && data.bk_officials) || {}).chancellor_username || "").toLowerCase() === u;
+  if (id.indexOf("lechmin:") === 0) {
+    const m = ((data && data.bk_officials) || {}).minister_usernames || {};
+    return String(m[id.slice(8)] || "").toLowerCase() === u;
+  }
+  if (id.indexOf("cab:") === 0) {
+    const p = id.split(":"), gov = p[1], post = p.slice(2).join(":");
+    const cab = ((data && data[gov]) || {}).cabinet || {};
+    return String(cab[u] || "").toLowerCase() === String(post).toLowerCase();
+  }
+  return false;
+}
+async function vwOfficeAccountById(id) {
+  const doc = await db.collection("singletons").findOne({ _id: "vw_office_accounts" });
+  const all = (doc && doc.value) || {};
+  return all[id] || null;
+}
+function vwUserControls(actor, oa, data) {
+  if (!actor || !oa) return false;
+  if (isSysAdmin(actor)) return true;
+  return (oa.offices || []).some(id => vwOfficeMatches(id, actor, data));
+}
+// Words the administrator has banned from posts (whole-word, case-insensitive).
+async function vwBannedWords() {
+  const d = await db.collection("singletons").findOne({ _id: "vw_profanity" });
+  const w = d && d.value && Array.isArray(d.value.words) ? d.value.words : [];
+  return new Set(w.map(x => String(x).toLowerCase().trim()).filter(Boolean));
+}
+function vwHasBanned(text, banned) {
+  if (!banned.size) return false;
+  return String(text || "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).some(t => banned.has(t));
+}
+// A post is authentic only if the account signing the request is the one named on
+// it, and (under an office account) only if it holds a reaching office. It must
+// also clear the word filter, the one-a-minute rate limit (posts and reposts, not
+// replies), and it may never repost a repost.
+async function authorizeVwPost(actor, value) {
+  if (!actor) return "Not authenticated";
+  const author = String((value && value.author) || "").toLowerCase();
+  if (!author) return "A post must name its author";
+  if (author !== String(actor.username || "").toLowerCase()) return "You may only post as yourself";
+  if (value && value.asOffice) {
+    const oa = await vwOfficeAccountById(String(value.asOffice));
+    if (!oa) return "That office account does not exist";
+    if (!vwUserControls(actor, oa, await vwLoadOfficeData())) return "You do not hold an office that reaches that account";
+  }
+  if (value && value.repostOf) {
+    const tgt = await db.collection("singletons").findOne({ _id: "vw_post_" + value.repostOf });
+    const t = tgt && tgt.value;
+    if (t && t.repostOf && !String(t.text || "").trim()) return "You can't repost a repost.";
+  }
+  if (value && String(value.text || "").trim() && vwHasBanned(value.text, await vwBannedWords()))
+    return "Your post contains a word that isn't allowed here.";
+  if (value && !value.replyTo) {                                    // rate limit posts + reposts, not replies
+    const rd = await db.collection("singletons").findOne({ _id: "vw_rate_" + author });
+    const last = (rd && rd.value && rd.value.at) || 0;
+    if (Date.now() - last < 60000) return "You're posting too fast — you can post once a minute.";
+  }
+  return null;
+}
+async function authorizeVwDM(actor, value) {
+  if (!actor) return "Not authenticated";
+  const from = String((value && value.from) || "").toLowerCase();
+  if (from !== String(actor.username || "").toLowerCase()) return "You may only send messages as yourself";
+  if (value && value.fromOffice) {
+    const oa = await vwOfficeAccountById(String(value.fromOffice));
+    if (!oa) return "That office account does not exist";
+    if (!vwUserControls(actor, oa, await vwLoadOfficeData())) return "You do not hold an office that reaches that account";
+  }
+  if (!value || !value.to) return "A message needs a recipient";
   return null;
 }
 
@@ -1449,6 +1569,34 @@ app.post("/api/set", async (req, res) => {
       await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value, _writtenBy: actor.username, _writtenAt: Date.now() }, { upsert: true });
       return res.json({ ok: true });
     }
+    // Vwitter — a post/repost/reply, signed by the account that made it (and, under
+    // an office account, only by someone who holds a reaching office).
+    if (key.indexOf("vw_post_") === 0) {
+      const e = await authorizeVwPost(actor, value);
+      if (e) return res.status(403).json({ ok: false, error: e });
+      await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value, _writtenBy: actor.username, _writtenAt: Date.now() }, { upsert: true });
+      if (value && !value.replyTo) {   // remember when they last posted, for the rate limit
+        const rk = "vw_rate_" + String(actor.username || "").toLowerCase();
+        await db.collection("singletons").replaceOne({ _id: rk }, { _id: rk, value: { at: Date.now() } }, { upsert: true });
+      }
+      return res.json({ ok: true });
+    }
+    // Vwitter — a direct message, kept private to its two participants by the
+    // snapshot redaction; here we only check it is genuinely from the sender.
+    if (key.indexOf("vw_dm_") === 0) {
+      const e = await authorizeVwDM(actor, value);
+      if (e) return res.status(403).json({ ok: false, error: e });
+      await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value, _writtenBy: actor.username, _writtenAt: Date.now() }, { upsert: true });
+      return res.json({ ok: true });
+    }
+    // Vwitter — a person's own profile (their bio). Keyed by their username.
+    if (key.indexOf("vw_profile_") === 0) {
+      const owner = key.slice("vw_profile_".length).toLowerCase();
+      if (owner !== String(actor.username || "").toLowerCase())
+        return res.status(403).json({ ok: false, error: "You may only edit your own profile" });
+      await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value, _writtenBy: actor.username, _writtenAt: Date.now() }, { upsert: true });
+      return res.json({ ok: true });
+    }
     // An office communiqué may be published by the officeholder it names (a normal
     // press article still needs Press authority, handled below).
     if (key.indexOf("press_article_") === 0 && value && value.pressRelease) {
@@ -1497,6 +1645,24 @@ app.post("/api/unset", async (req, res) => {
         await db.collection("singletons").deleteOne({ _id: key });
         return res.json({ ok: true });
       }
+    }
+    // Vwitter — the author may delete their own post or message; an administrator
+    // may delete any. Profiles are their owner's (or an administrator's) to clear.
+    if (key.indexOf("vw_post_") === 0 || key.indexOf("vw_dm_") === 0) {
+      const cur = await db.collection("singletons").findOne({ _id: key });
+      const rec = cur && cur.value;
+      const owner = String((rec && (rec.author || rec.from)) || "").toLowerCase();
+      if (!isSysAdmin(actor) && owner && owner !== String(actor.username || "").toLowerCase())
+        return res.status(403).json({ ok: false, error: "You may only delete your own posts" });
+      await db.collection("singletons").deleteOne({ _id: key });
+      return res.json({ ok: true });
+    }
+    if (key.indexOf("vw_profile_") === 0) {
+      const owner = key.slice("vw_profile_".length).toLowerCase();
+      if (!isSysAdmin(actor) && owner !== String(actor.username || "").toLowerCase())
+        return res.status(403).json({ ok: false, error: "You may only edit your own profile" });
+      await db.collection("singletons").deleteOne({ _id: key });
+      return res.json({ ok: true });
     }
     const err = await authorizeKeyWrite(actor, key);
     if (err) return res.status(403).json({ ok: false, error: err });
