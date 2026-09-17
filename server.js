@@ -390,7 +390,11 @@ app.get("/api/collection/:name", async (req, res) => {
   try {
     const name = req.params.name;
     // Never hand out the credential store, live tokens, or secrets through this endpoint.
-    if (name === "accounts" || name === "sessions" || name === "secrets") return res.status(403).json({ ok: false, error: "Forbidden" });
+    // Nor the singletons store wholesale: /api/data redacts records inside it per
+    // viewer (Wilden's secret ballots, private messages, voided-ballot notices), and
+    // reading the raw collection here would skip every one of those redactions.
+    if (name === "accounts" || name === "sessions" || name === "secrets" || name === "singletons")
+      return res.status(403).json({ ok: false, error: "Forbidden" });
     const actor = await actorFromReq(req);
     const kind = PROTECTED[name];
     const all = () => db.collection(name).find({}).toArray();
@@ -502,6 +506,13 @@ app.get("/api/data", async (req, res) => {
           }
           // The banned-word list is the administrator's; players never see it.
           if (String(d._id) === "vw_profanity" && !isSysAdmin(actor)) return;
+          // A voided ballot is a disciplinary record. The Returning Officer sees every
+          // one; the voter it names sees their own, so the election page can tell
+          // them why; nobody else sees any.
+          if (String(d._id).indexOf("el_void_") === 0 && !(actor && (isReturningOfficer(actor) || isSysAdmin(actor)))) {
+            const v = d.value || {}, u = actor ? String(actor.username || "").toLowerCase() : "";
+            if (!u || String(v.username || "").toLowerCase() !== u) return;
+          }
           out[d._id] = filterPrivateDocs(d._id, d.value, actor, viewerIsPolice);
         });
         return;
@@ -832,9 +843,39 @@ async function authorizeBallot(actor, key, value) {
     return "You may only cast your own ballot";
   const allow = new Set(el.eligibility && el.eligibility.length ? el.eligibility : ["citizen", "naturalised"]);
   if (!allow.has(String(cit.status || "citizen"))) return "Your category is not enfranchised for this election";
+  if (await isBarredFromElection(elId, citizenId, actor.username))
+    return "Your ballot in this election was voided and you may not vote in it again";
   if (await db.collection("singletons").findOne({ _id: key }, { projection: { _id: 1 } }))
     return "A ballot has already been cast and cannot be changed";
   return null;
+}
+
+// ── Voiding a ballot ──────────────────────────────────────────────────────────
+// The Returning Officer may void any ballot until the result is certified. A
+// SOFT void strikes the ballot and leaves the elector free to cast again; a HARD
+// void strikes it and bars them from voting in that election at all. Either way
+// the reason is kept on el_void_<electionId>_<citizenId>, which the snapshot shows
+// only to the Returning Officer and the voter it names.
+const VOID_KINDS = new Set(["soft", "hard"]);
+const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// A hard void bars the person who cast the ballot — the account named on the void,
+// which is also the only account the snapshot tells about it. Matching the citizen
+// record as well would bar whoever that record is later relinked to, silently. The
+// record id is used only for a void that names no account. The election is matched
+// on the record itself too — a key prefix alone would let a void in contest "e1_x"
+// also bar the same voter in contest "e1".
+async function isBarredFromElection(elId, citizenId, username) {
+  const u = String(username || "").toLowerCase();
+  const hit = await db.collection("singletons").findOne({
+    _id: { $regex: "^" + escapeRegex("el_void_" + elId + "_") },
+    "value.elId": String(elId),
+    "value.kind": "hard",
+    $or: [
+      ...(u ? [{ "value.username": u }] : []),
+      { "value.citizenId": String(citizenId || ""), "value.username": { $in: ["", null] } },
+    ],
+  }, { projection: { _id: 1 } });
+  return !!hit;
 }
 
 // Standing for election. A candidate files their own nomination under their own
@@ -1424,6 +1465,11 @@ async function authorizeWxBill(actor, record) {
 
 async function writeRule(collection, actor, record) {
   if (!actor) return "Not authenticated";
+  // Sessions and the singletons store are written only by the server's own
+  // endpoints, each with its own rules (login, ballots, voids, nominations …).
+  // Through here, a session could be forged for any account, and any singleton —
+  // a ballot, a voided-ballot record, a government register — overwritten.
+  if (collection === "sessions" || collection === "singletons") return "Forbidden";
   if (collection === "wx_votes") return await authorizeWxVote(actor, record);
   if (collection === "wx_bills") return await authorizeWxBill(actor, record);
   if (collection === "vx_votes") return await authorizeVxVote(actor, record);
@@ -1448,7 +1494,7 @@ async function writeRule(collection, actor, record) {
 }
 async function deleteRule(collection, actor) {
   if (!actor) return "Not authenticated";
-  if (collection === "secrets") return "Forbidden";
+  if (collection === "secrets" || collection === "sessions" || collection === "singletons") return "Forbidden";
   // The network administrator may expunge a measure outright — record, votes and
   // all — leaving no trace. This is deliberately outside every national office:
   // it is a moderation power over the estate, not an act of any government.
@@ -1520,7 +1566,12 @@ app.post("/api/delete", async (req, res) => {
 // classified records are refused here and must go through /api/write, which
 // enforces the per-record rules. Classification mirrors how the data was
 // imported, so writes round-trip with /api/data.
-const NON_KV = (key) => key === "mi_accounts" || key === "secrets" || key === "mi_pfp" || key.indexOf("mi_acc_") === 0 || !!PROTECTED[key];
+// The server's own stores are never a "key". Without this, the generic path would
+// read /api/set "sessions" or "accounts" as a record map and replace the whole
+// collection (minting a login as anyone, or a new owner), and /api/set or unset of
+// "singletons" would overwrite or drop every singleton on the network at once.
+const INTERNAL_STORES = new Set(["sessions", "secrets", "singletons", "accounts"]);
+const NON_KV = (key) => INTERNAL_STORES.has(key) || key === "mi_accounts" || key === "mi_pfp" || key.indexOf("mi_acc_") === 0 || !!PROTECTED[key];
 async function classifyKey(key, value) {
   if (SINGLETON_KEYS.has(key)) return "singleton";
   if (await db.collection("singletons").findOne({ _id: key }, { projection: { _id: 1 } })) return "singleton";
@@ -1542,8 +1593,14 @@ app.post("/api/set", async (req, res) => {
     if (key.indexOf("el_ballot_") === 0) {
       const berr = await authorizeBallot(actor, key, req.body.value);
       if (berr) return res.status(403).json({ ok: false, error: berr });
-      await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value: req.body.value, _writtenBy: actor.username, _writtenAt: Date.now() }, { upsert: true });
-      return res.json({ ok: true });
+      // Who cast it and when, stamped by the server inside the ballot itself — not
+      // trusted from the browser. A voided ballot is attributed to castBy, and a
+      // soft void counts as answered only by a ballot the same person cast after it
+      // (both times on the server's clock).
+      const now = Date.now();
+      const ballot = { ...req.body.value, castBy: String(actor.username || "").toLowerCase(), castAt: now };
+      await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value: ballot, _writtenBy: actor.username, _writtenAt: now }, { upsert: true });
+      return res.json({ ok: true, ballot });
     }
     // Filing to stand for election: the candidate's own nomination paper, subject
     // to its own ownership + timing rules. A Returning Officer skips this and is
@@ -1676,6 +1733,88 @@ app.post("/api/unset", async (req, res) => {
     const cn = collName(key);
     if ((await db.listCollections({ name: cn }).toArray()).length) await db.collection(cn).drop().catch(() => {});
     res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Void one ballot, in a single step on the server so the notice and the strike can
+// never come apart: the void record is written first, then the ballot removed.
+// A void belongs to the PERSON who cast the ballot, not to the citizen record it was
+// cast on: it is attributed to the ballot's server-stamped caster and keyed by that
+// account, so two people's voids can never share a key (a record relinked between
+// accounts cannot make one void overwrite another), and the ban, the notice and the
+// "have they recast?" check all follow the same person.
+const voidKeyFor = (elId, username, citizenId) =>
+  "el_void_" + elId + "_" + (username ? "u_" + username : "c_" + citizenId);
+app.post("/api/election/void-ballot", async (req, res) => {
+  try {
+    const actor = await actorFromReq(req);
+    if (!actor) return res.status(401).json({ ok: false, error: "Not authenticated" });
+    if (!isReturningOfficer(actor)) return res.status(403).json({ ok: false, error: "Only the Returning Officer may void a ballot" });
+    const b = req.body || {};
+    const elId = String(b.elId || ""), citizenId = String(b.citizenId || "");
+    const kind = String(b.kind || ""), reason = String(b.reason || "").trim();
+    if (!elId || !citizenId) return res.status(400).json({ ok: false, error: "Which ballot?" });
+    if (!VOID_KINDS.has(kind)) return res.status(400).json({ ok: false, error: "A void is either soft or hard" });
+    if (!reason) return res.status(400).json({ ok: false, error: "Give the reason — the voter is shown it" });
+    if (reason.length > 1000) return res.status(400).json({ ok: false, error: "Keep the reason under 1,000 characters" });
+    const el = await electionById(elId);
+    if (!el) return res.status(404).json({ ok: false, error: "No such election" });
+    if (el.status === "certified") return res.status(409).json({ ok: false, error: "The result is certified; its ballots can no longer be voided" });
+    const ballotKey = "el_ballot_" + elId + "_" + citizenId;
+    const cur = await db.collection("singletons").findOne({ _id: ballotKey });
+    if (!cur) return res.status(404).json({ ok: false, error: "That ballot is no longer in the box" });
+    const cit = await db.collection("mfa_citizens").findOne({ $or: [{ _id: citizenId }, { id: citizenId }] });
+    const ballot = cur.value || {};
+    const username = String(ballot.castBy || cur._writtenBy || (cit && cit.username) || "").trim().toLowerCase();
+    const voidKey = voidKeyFor(elId, username, citizenId);
+    // Voiding never lifts a ban. A barred person cannot cast again, so this only
+    // arises from a ballot on a second record cast before the ban; the ban stands
+    // until the Registrar lifts it deliberately.
+    const prev = await db.collection("singletons").findOne({ _id: voidKey });
+    if (prev && prev.value && prev.value.kind === "hard" && kind !== "hard")
+      return res.status(409).json({ ok: false, error: "This elector is already barred from this election — lift the ban first" });
+    const now = Date.now();
+    const record = {
+      elId, citizenId, kind, reason, username,
+      citizenName: String((cit && cit.name) || ballot.citizenName || ""),
+      at: now, by: actor.username, byName: actor.displayName || actor.username,
+      ballot,
+    };
+    await db.collection("singletons").replaceOne({ _id: voidKey },
+      { _id: voidKey, value: record, _writtenBy: actor.username, _writtenAt: now }, { upsert: true });
+    await db.collection("singletons").deleteOne({ _id: ballotKey });
+    res.json({ ok: true, key: voidKey, record });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Lift a ban. The ballot stays struck and the reason stays on record, but the void
+// turns soft, so the elector is told in yellow that they may now vote again —
+// lifting never leaves someone silently without a vote. Applied only to the exact
+// void the Registrar was looking at (matched on its timestamp): a Registrar working
+// from a stale page cannot overwrite a newer void, and nothing moves once the result
+// is certified.
+app.post("/api/election/lift-ban", async (req, res) => {
+  try {
+    const actor = await actorFromReq(req);
+    if (!actor) return res.status(401).json({ ok: false, error: "Not authenticated" });
+    if (!isReturningOfficer(actor)) return res.status(403).json({ ok: false, error: "Only the Returning Officer may lift a ban" });
+    const key = String((req.body && req.body.key) || ""), at = Number(req.body && req.body.at);
+    if (key.indexOf("el_void_") !== 0 || !at) return res.status(400).json({ ok: false, error: "Which ban?" });
+    const cur = await db.collection("singletons").findOne({ _id: key });
+    const rec = cur && cur.value;
+    if (!rec || rec.kind !== "hard") return res.status(404).json({ ok: false, error: "There is no ban on record to lift" });
+    if (rec.at !== at) return res.status(409).json({ ok: false, error: "This void has changed since you loaded it — refresh and try again" });
+    const el = await electionById(rec.elId);
+    if (!el) return res.status(404).json({ ok: false, error: "No such election" });
+    if (el.status === "certified") return res.status(409).json({ ok: false, error: "The result is certified; its voids can no longer be changed" });
+    const now = Date.now();
+    const next = { ...rec, kind: "soft", liftedAt: now, liftedBy: actor.username };
+    const r = await db.collection("singletons").replaceOne(
+      { _id: key, "value.at": at, "value.kind": "hard" },
+      { _id: key, value: next, _writtenBy: actor.username, _writtenAt: now });
+    if (r && r.matchedCount === 0)
+      return res.status(409).json({ ok: false, error: "This void has changed since you loaded it — refresh and try again" });
+    res.json({ ok: true, key, record: next });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
