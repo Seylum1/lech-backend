@@ -513,6 +513,16 @@ app.get("/api/data", async (req, res) => {
             const v = d.value || {}, u = actor ? String(actor.username || "").toLowerCase() : "";
             if (!u || String(v.username || "").toLowerCase() !== u) return;
           }
+          // Vindex presidential ballots are secret — the raw ranking goes only to the
+          // Federal Electoral Commission (a network administrator). The public turnout
+          // tally and the certified result still ship to everyone.
+          if (String(d._id).indexOf("vx_el_ballot_") === 0 && !isSysAdmin(actor)) return;
+          // A voided Vindex ballot is a disciplinary record: the Commission sees every
+          // one, the elector it names sees their own, nobody else sees any.
+          if (String(d._id).indexOf("vx_el_void_") === 0 && !(actor && isSysAdmin(actor))) {
+            const v = d.value || {}, u = actor ? String(actor.username || "").toLowerCase() : "";
+            if (!u || String(v.username || "").toLowerCase() !== u) return;
+          }
           out[d._id] = filterPrivateDocs(d._id, d.value, actor, viewerIsPolice);
         });
         return;
@@ -788,6 +798,13 @@ async function authorizeKeyWrite(actor, key) {
   // before this; everything else wx_el_* is the Returning Officer's.
   if (key.indexOf("wx_el_") === 0)
     return isWildenReturningOfficer(actor) ? null : "Requires the Returning Officer (the Sovereign or an administrator)";
+  // Vindex presidential election — the config, the party register, the turnout
+  // tally's upkeep, the result and nomination rulings belong to the Federal
+  // Electoral Commission (a network administrator). Secret ballots and a
+  // candidate's own nomination are intercepted in /api/set before this; everything
+  // else vx_el_* is the Commission's, so an ordinary Vindex office cannot touch it.
+  if (key.indexOf("vx_el_") === 0)
+    return isVindexFEC(actor) ? null : "Requires the Federal Electoral Commission (a network administrator)";
   // Vwitter: posts, messages and profiles are self-authored and intercepted in
   // /api/set (and their deletes in /api/unset). Anything else vw_* — the office
   // accounts register above all — is the network administrator's.
@@ -970,6 +987,103 @@ async function castWildenBallot(actor, key, value) {
   if (choice) tally.counts[choice] = (tally.counts[choice] || 0) + 1;
   if (!tally.voted.includes(citizenId)) tally.voted.push(citizenId);
   tally.total = (tally.total || 0) + 1;
+  await db.collection("singletons").replaceOne({ _id: tkey }, { _id: tkey, value: tally }, { upsert: true });
+  return null;
+}
+
+// ── The Vindex presidential election (Federal Electoral Commission) ───────────
+// Vindex runs its presidential poll as a SECRET, ranked (Schulze) ballot. The raw
+// ranking (who → in what order) is written administrator-only and never leaves the
+// server to anyone else; a public tally keeps only the turnout (who has voted, and
+// how many), so everyone sees participation climb but no one sees a single elector's
+// ranking. The result itself is computed by the Commission at the count and written
+// to a public record (vx_el_result_<elId>), so the Schulze outcome and its pairwise
+// matrix are visible to all without any ballot being exposed. The Federal Electoral
+// Commission is the network administrator (the only authority Vindex vests this in).
+function isVindexFEC(a) { return isSysAdmin(a); }
+async function vindexElectionById(elId) {
+  if (!elId) return null;
+  const direct = await db.collection("vx_el_elections").findOne({ _id: elId }).catch(() => null);
+  if (direct) return direct;
+  const doc = await db.collection("singletons").findOne({ _id: "vx_el_elections" });
+  const all = (doc && doc.value) || {};
+  return all[elId] || null;
+}
+// Standing for President. A candidate files their own nomination under their own
+// username — vx_el_reg_<elId>_<username> — only while nominations are open, and may
+// never rule on their own case: the decision status, the party the Commission
+// assigns, and the recognition of a newly requested party are the Commission's
+// alone, and a paper already ruled on is sealed. The Commission never reaches here;
+// the vx_el_ domain admits it.
+async function authorizeVindexRegistration(actor, key, value) {
+  if (!actor) return "Not authenticated";
+  const elId = value && value.elId, uname = String(actor.username || "").toLowerCase();
+  if (!elId || !uname) return "Malformed nomination";
+  if ("vx_el_reg_" + elId + "_" + uname !== key) return "You may only file your own nomination";
+  const el = await vindexElectionById(elId);
+  if (!el) return "No such election";
+  if (el.status !== "registration") return "Nominations are not open";
+  const cur = await db.collection("singletons").findOne({ _id: key });
+  const prev = cur && cur.value;
+  if (prev && prev.status && prev.status !== "pending")
+    return "Your nomination has already been ruled on and cannot be changed";
+  if ((value.status || "pending") !== "pending") return "A candidate may not rule on their own nomination";
+  if (value.partyStatus && value.partyStatus !== "pending") return "A candidate may not recognise their own party";
+  if (value.assignedParty) return "Only the Commission may assign a party";
+  return null;
+}
+// A hard void bars the account that cast the struck ballot (the account named on the
+// void, which is also the only one the snapshot tells about it). The election is
+// matched on the record too, so a bar in contest "e1_x" never reaches "e1".
+const vxVoidKeyFor = (elId, username, citizenId) =>
+  "vx_el_void_" + elId + "_" + (username ? "u_" + username : "c_" + citizenId);
+async function isBarredFromVindexElection(elId, citizenId, username) {
+  const u = String(username || "").toLowerCase();
+  const hit = await db.collection("singletons").findOne({
+    _id: { $regex: "^" + escapeRegex("vx_el_void_" + elId + "_") },
+    "value.elId": String(elId),
+    "value.kind": "hard",
+    $or: [
+      ...(u ? [{ "value.username": u }] : []),
+      { "value.citizenId": String(citizenId || ""), "value.username": { $in: ["", null] } },
+    ],
+  }, { projection: { _id: 1 } });
+  return !!hit;
+}
+// Casting a Vindex ballot: one ranking per enfranchised citizen, for the citizen
+// record the account owns, only while the poll is open, never changed, and never
+// from someone a hard void has barred. The raw ranking is stored _secretBallot so
+// the snapshot hands it only to the Commission; a public turnout tally is bumped so
+// participation shows with no voter→ranking link exposed.
+async function castVindexBallot(actor, key, value) {
+  if (!actor) return "Not authenticated";
+  const citizenId = value && value.citizenId, elId = value && value.elId;
+  const ranking = Array.isArray(value && value.ranking) ? value.ranking.map(String) : [];
+  if (!citizenId || !elId) return "Malformed ballot";
+  if ("vx_el_ballot_" + elId + "_" + citizenId !== key) return "Ballot does not match its key";
+  const el = await vindexElectionById(elId);
+  if (!el) return "No such election";
+  if (el.status !== "voting") return "The poll is not open";
+  const cit = await db.collection("vx_state_citizens").findOne({ $or: [{ _id: citizenId }, { id: citizenId }] });
+  if (!cit) return "No citizen record for this ballot";
+  const uname = String(actor.username || "").toLowerCase();
+  if (String(cit.username || "").toLowerCase() !== uname) return "You may only cast your own ballot";
+  const allow = new Set(el.eligibility && el.eligibility.length ? el.eligibility : ["citizen", "naturalised"]);
+  if (!allow.has(String(cit.status || "citizen"))) return "You are not enfranchised for this election";
+  if (await isBarredFromVindexElection(elId, citizenId, uname))
+    return "Your ballot in this election was voided and you may not vote in it again";
+  if (await db.collection("singletons").findOne({ _id: key }, { projection: { _id: 1 } }))
+    return "A ballot has already been cast and cannot be changed";
+  const now = Date.now();
+  await db.collection("singletons").replaceOne({ _id: key },
+    { _id: key, value: { elId, citizenId, ranking, at: now, castBy: uname }, _secretBallot: true, _writtenBy: actor.username, _writtenAt: now },
+    { upsert: true });
+  const tkey = "vx_el_tally_" + elId;
+  const tdoc = await db.collection("singletons").findOne({ _id: tkey });
+  const tally = (tdoc && tdoc.value && typeof tdoc.value === "object") ? tdoc.value : {};
+  if (!Array.isArray(tally.voted)) tally.voted = [];
+  if (!tally.voted.includes(citizenId)) tally.voted.push(citizenId);
+  tally.total = (tally.voted || []).length;
   await db.collection("singletons").replaceOne({ _id: tkey }, { _id: tkey, value: tally }, { upsert: true });
   return null;
 }
@@ -1626,6 +1740,22 @@ app.post("/api/set", async (req, res) => {
       await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value, _writtenBy: actor.username, _writtenAt: Date.now() }, { upsert: true });
       return res.json({ ok: true });
     }
+    // Vindex secret presidential ballot: the box stores the ranking administrator-
+    // only and bumps the public turnout tally itself — never the raw ranking
+    // through the open snapshot.
+    if (key.indexOf("vx_el_ballot_") === 0) {
+      const berr = await castVindexBallot(actor, key, req.body.value);
+      if (berr) return res.status(403).json({ ok: false, error: berr });
+      return res.json({ ok: true });
+    }
+    // A Vindex candidate's own nomination (the Commission skips this and is admitted
+    // by the vx_el_ rule to rule on any paper).
+    if (key.indexOf("vx_el_reg_") === 0 && !isVindexFEC(actor)) {
+      const rerr = await authorizeVindexRegistration(actor, key, value);
+      if (rerr) return res.status(403).json({ ok: false, error: rerr });
+      await db.collection("singletons").replaceOne({ _id: key }, { _id: key, value, _writtenBy: actor.username, _writtenAt: Date.now() }, { upsert: true });
+      return res.json({ ok: true });
+    }
     // Vwitter — a post/repost/reply, signed by the account that made it (and, under
     // an office account, only by someone who holds a reaching office).
     if (key.indexOf("vw_post_") === 0) {
@@ -1818,6 +1948,91 @@ app.post("/api/election/lift-ban", async (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
+// ── Voiding a Vindex presidential ballot ──────────────────────────────────────
+// The Federal Electoral Commission may void any ballot until the result is
+// certified. A SOFT void strikes the ballot and leaves the elector free to cast
+// again; a HARD void strikes it and bars them from voting in that election. Because
+// the ballot is secret, only the Commission (an administrator) ever reaches here —
+// it already holds the raw ranking. Striking a ballot also removes the elector from
+// the public turnout tally, so participation stays honest. The reason is kept on
+// vx_el_void_<elId>_u_<username>, shown only to the Commission and the elector named.
+app.post("/api/election/vx-void-ballot", async (req, res) => {
+  try {
+    const actor = await actorFromReq(req);
+    if (!actor) return res.status(401).json({ ok: false, error: "Not authenticated" });
+    if (!isVindexFEC(actor)) return res.status(403).json({ ok: false, error: "Only the Federal Electoral Commission may void a ballot" });
+    const b = req.body || {};
+    const elId = String(b.elId || ""), citizenId = String(b.citizenId || "");
+    const kind = String(b.kind || ""), reason = String(b.reason || "").trim();
+    if (!elId || !citizenId) return res.status(400).json({ ok: false, error: "Which ballot?" });
+    if (!VOID_KINDS.has(kind)) return res.status(400).json({ ok: false, error: "A void is either soft or hard" });
+    if (!reason) return res.status(400).json({ ok: false, error: "Give the reason — the voter is shown it" });
+    if (reason.length > 1000) return res.status(400).json({ ok: false, error: "Keep the reason under 1,000 characters" });
+    const el = await vindexElectionById(elId);
+    if (!el) return res.status(404).json({ ok: false, error: "No such election" });
+    if (el.status === "certified") return res.status(409).json({ ok: false, error: "The result is certified; its ballots can no longer be voided" });
+    const ballotKey = "vx_el_ballot_" + elId + "_" + citizenId;
+    const cur = await db.collection("singletons").findOne({ _id: ballotKey });
+    if (!cur) return res.status(404).json({ ok: false, error: "That ballot is no longer in the box" });
+    const cit = await db.collection("vx_state_citizens").findOne({ $or: [{ _id: citizenId }, { id: citizenId }] });
+    const ballot = cur.value || {};
+    const username = String(ballot.castBy || cur._writtenBy || (cit && cit.username) || "").trim().toLowerCase();
+    const voidKey = vxVoidKeyFor(elId, username, citizenId);
+    const prev = await db.collection("singletons").findOne({ _id: voidKey });
+    if (prev && prev.value && prev.value.kind === "hard" && kind !== "hard")
+      return res.status(409).json({ ok: false, error: "This elector is already barred from this election — lift the ban first" });
+    const now = Date.now();
+    const record = {
+      elId, citizenId, kind, reason, username,
+      citizenName: String((cit && cit.name) || ballot.citizenName || ""),
+      at: now, by: actor.username, byName: actor.displayName || actor.username,
+      ballot,
+    };
+    await db.collection("singletons").replaceOne({ _id: voidKey },
+      { _id: voidKey, value: record, _writtenBy: actor.username, _writtenAt: now }, { upsert: true });
+    await db.collection("singletons").deleteOne({ _id: ballotKey });
+    // Remove the struck elector from the public turnout tally.
+    const tkey = "vx_el_tally_" + elId;
+    const tdoc = await db.collection("singletons").findOne({ _id: tkey });
+    if (tdoc && tdoc.value && Array.isArray(tdoc.value.voted)) {
+      const tally = tdoc.value;
+      tally.voted = tally.voted.filter(c => String(c) !== String(citizenId));
+      tally.total = tally.voted.length;
+      await db.collection("singletons").replaceOne({ _id: tkey }, { _id: tkey, value: tally }, { upsert: true });
+    }
+    res.json({ ok: true, key: voidKey, record });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Lift a Vindex ban. The ballot stays struck and the reason stays on record, but the
+// void turns soft, so the elector may vote again (lifting never leaves someone
+// silently without a vote). Applied only to the exact void the Commission was looking
+// at (matched on its timestamp); nothing moves once the result is certified.
+app.post("/api/election/vx-lift-ban", async (req, res) => {
+  try {
+    const actor = await actorFromReq(req);
+    if (!actor) return res.status(401).json({ ok: false, error: "Not authenticated" });
+    if (!isVindexFEC(actor)) return res.status(403).json({ ok: false, error: "Only the Federal Electoral Commission may lift a ban" });
+    const key = String((req.body && req.body.key) || ""), at = Number(req.body && req.body.at);
+    if (key.indexOf("vx_el_void_") !== 0 || !at) return res.status(400).json({ ok: false, error: "Which ban?" });
+    const cur = await db.collection("singletons").findOne({ _id: key });
+    const rec = cur && cur.value;
+    if (!rec || rec.kind !== "hard") return res.status(404).json({ ok: false, error: "There is no ban on record to lift" });
+    if (rec.at !== at) return res.status(409).json({ ok: false, error: "This void has changed since you loaded it — refresh and try again" });
+    const el = await vindexElectionById(rec.elId);
+    if (!el) return res.status(404).json({ ok: false, error: "No such election" });
+    if (el.status === "certified") return res.status(409).json({ ok: false, error: "The result is certified; its voids can no longer be changed" });
+    const now = Date.now();
+    const next = { ...rec, kind: "soft", liftedAt: now, liftedBy: actor.username };
+    const r = await db.collection("singletons").replaceOne(
+      { _id: key, "value.at": at, "value.kind": "hard" },
+      { _id: key, value: next, _writtenBy: actor.username, _writtenAt: now });
+    if (r && r.matchedCount === 0)
+      return res.status(409).json({ ok: false, error: "This void has changed since you loaded it — refresh and try again" });
+    res.json({ ok: true, key, record: next });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 // ── ONE-TIME DATA IMPORT ───────────────────────────────────────────────────────
 // Copies everything from both Sheets backends into MongoDB. Safe to re-run (it
 // replaces the Mongo copy each time). Reads only — your Sheets are untouched.
@@ -1836,7 +2051,7 @@ function collName(key) { return String(key).replace(/[^a-zA-Z0-9_]/g, "_"); }
 // vx_gov is one such: its only member is the cabinet map, so the heuristic would
 // flip it between singleton and collection depending on whether a post happens to
 // be assigned.
-const SINGLETON_KEYS = new Set(["bk_orgchart", "vx_gov", "wx_gov"]);
+const SINGLETON_KEYS = new Set(["bk_orgchart", "vx_gov", "wx_gov", "vx_el_parties"]);
 async function replaceCollection(name, docs) {
   const c = db.collection(name);
   await c.deleteMany({});
