@@ -221,7 +221,20 @@ app.post("/api/register", async (req, res) => {
     if (wanted && !CITIZENSHIP_NATIONS[wanted])
       return res.status(400).json({ ok: false, error: "Choose one of the three nations as your primary citizenship." });
     const displayName = rpName.name;
-    if (!/^[a-f0-9]{64}$/i.test(passwordHash)) return res.status(400).json({ ok: false, error: "A password is required." });
+    // An ALT account — a second account for another of a player's Minecraft accounts
+    // — is created while signed in, and linked to the signed-in main taken from the
+    // SESSION (never trusted from the client, so no one can file an alt under someone
+    // else's name). An alt has NO password of its own: it is never signed into
+    // directly, only SWITCHED into from its main (/api/switch-account). A normal
+    // self-registration still needs a password.
+    let altActor = null;
+    if (req.body && req.body.asAlt) {
+      altActor = await actorFromReq(req);
+      if (!altActor) return res.status(401).json({ ok: false, error: "Sign in to create an alt account." });
+      if (altActor.banned) return res.status(403).json({ ok: false, error: "A suspended account cannot create alt accounts." });
+    }
+    const isAlt = !!altActor;
+    if (!isAlt && !/^[a-f0-9]{64}$/i.test(passwordHash)) return res.status(400).json({ ok: false, error: "A password is required." });
     const id = raw.toLowerCase();
     if (await db.collection("accounts").findOne({ _id: id }, { projection: { _id: 1 } }))
       return res.status(409).json({ ok: false, error: "An account with that username already exists — try signing in." });
@@ -230,35 +243,24 @@ app.post("/api/register", async (req, res) => {
       if (mc.reason === "not_found") return res.status(400).json({ ok: false, error: "No Minecraft account by that name. Enter your exact Minecraft username." });
       return res.status(503).json({ ok: false, error: "Couldn't reach Minecraft to verify that name. Please try again in a moment." });
     }
-    // An ALT account — a second account for another of a player's Minecraft
-    // accounts — is created while signed in. It is an ordinary account in every way
-    // except that the network administrators can see whose alt it is. The link is
-    // taken from the SESSION, never trusted from the client, so no one can file an
-    // alt under someone else's name. Like any self-registration it is queued for
-    // review — an administrator admits it from the panel, where it is tagged an alt.
-    let altActor = null;
-    if (req.body && req.body.asAlt) {
-      altActor = await actorFromReq(req);
-      if (!altActor) return res.status(401).json({ ok: false, error: "Sign in to create an alt account." });
-      if (altActor.banned) return res.status(403).json({ ok: false, error: "A suspended account cannot create alt accounts." });
-    }
-    const isAlt = !!altActor;
     const now = Date.now();
-    // A registration now makes a *neutral* account — it belongs to no nation. There
-    // is a linked Minecraft account and a name, and nothing else; each country grants
-    // its own citizenship and offices afterward. `role: "citizen"` is only Lech's
-    // baseline "no office" value and confers no citizenship of anywhere.
+    // A registration makes a *neutral* account — it belongs to no nation. There is a
+    // linked Minecraft account and a name, and nothing else; each country grants its
+    // own citizenship and offices afterward. `role: "citizen"` is only Lech's baseline
+    // "no office" value and confers no citizenship of anywhere.
     //
     // Every self-registration — an alt included — arrives UNAPPROVED: a request to
     // join the network, which an administrator or moderator admits from the Vintranet
-    // panel. No session is issued here, so the player signs in once it is let in
-    // (for an alt, they sign in as the alt itself).
+    // panel. No session is issued here.
     const doc = {
-      _id: id, username: id, displayName, passwordHash,
+      _id: id, username: id, displayName,
       role: "citizen", mcUuid: mc.uuid, mcName: mc.name, pfpLocked: false, notes: "",
       approved: false, registeredAt: now,
       _selfRegistered: true, _writtenBy: id, _writtenAt: now,
     };
+    // A main keeps its own password; an alt has none, so it can only ever be entered
+    // by switching from its main, never by a direct login.
+    if (!isAlt) doc.passwordHash = passwordHash;
     // Flagged as an alt, linked to the main. If the signed-in account is itself an
     // alt, the new one points to the same head, so a player's alts all link to one
     // main rather than forming a chain.
@@ -304,6 +306,55 @@ app.get("/api/me", async (req, res) => {
   const acc = await actorFromReq(req);
   if (!acc) return res.status(401).json({ ok: false, error: "Not authenticated" });
   res.json({ ok: true, account: sanitizeAccount(acc) });
+});
+
+// ── Alt accounts: one login, many characters ───────────────────────────────────
+// A player signs in once as their MAIN (the only account in a group that has a
+// password) and switches between that main and its alts from the page — an alt is
+// never signed into directly. The "group" is the main plus every account whose
+// altOf points to it; the head is resolved from whoever is signed in (an alt's head
+// is its altOf, a main's head is itself).
+function altHeadOf(acc) { return String((acc && (acc.altOf || acc.username)) || "").toLowerCase(); }
+
+// The accounts the signed-in player may act as: their main and its alts, with just
+// enough to list and switch between them. The link is the player's own, so this is
+// theirs to see even though the public directory hides it from everyone else.
+app.get("/api/my-accounts", async (req, res) => {
+  try {
+    const actor = await actorFromReq(req);
+    if (!actor) return res.status(401).json({ ok: false, error: "Not authenticated" });
+    const head = altHeadOf(actor);
+    const docs = await db.collection("accounts").find({ $or: [{ _id: head }, { altOf: head }] }).toArray();
+    const accounts = docs.map(a => ({
+      username: a.username, displayName: a.displayName, mcName: a.mcName,
+      isMain: String(a.username).toLowerCase() === head, alt: !!a.alt,
+      approved: a.approved !== false, banned: !!a.banned,
+    })).sort((x, y) => (y.isMain - x.isMain) || String(x.displayName || x.username).localeCompare(String(y.displayName || y.username)));
+    res.json({ ok: true, head, current: String(actor.username).toLowerCase(), accounts });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// Switch to one of your own accounts without its password. Allowed only within your
+// own group (your main and its alts) and only to an account that is admitted and not
+// suspended. A fresh session is issued for the target; the old one is left to expire,
+// so switching back is just another switch.
+app.post("/api/switch-account", async (req, res) => {
+  try {
+    const actor = await actorFromReq(req);
+    if (!actor) return res.status(401).json({ ok: false, error: "Not authenticated" });
+    const target = String((req.body && req.body.username) || "").trim().toLowerCase();
+    if (!target) return res.status(400).json({ ok: false, error: "Which account?" });
+    const head = altHeadOf(actor);
+    const tacc = await db.collection("accounts").findOne({ _id: target });
+    if (!tacc) return res.status(404).json({ ok: false, error: "No such account." });
+    const inGroup = target === head || String(tacc.altOf || "").toLowerCase() === head;
+    if (!inGroup) return res.status(403).json({ ok: false, error: "You can only switch between your own accounts." });
+    if (tacc.banned) return res.status(403).json({ ok: false, error: "That account is suspended." });
+    if (tacc.approved === false) return res.status(403).json({ ok: false, error: "That account is still under review." });
+    const token = crypto.randomUUID();
+    await db.collection("sessions").insertOne({ _id: token, username: tacc._id, exp: Date.now() + SESSION_TTL_MS });
+    res.json({ ok: true, token, account: sanitizeAccount(tacc) });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
 // Self-service password change: any signed-in account may change its own password
