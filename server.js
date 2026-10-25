@@ -230,27 +230,51 @@ app.post("/api/register", async (req, res) => {
       if (mc.reason === "not_found") return res.status(400).json({ ok: false, error: "No Minecraft account by that name. Enter your exact Minecraft username." });
       return res.status(503).json({ ok: false, error: "Couldn't reach Minecraft to verify that name. Please try again in a moment." });
     }
+    // An ALT account — a second account for another of a player's Minecraft
+    // accounts — is created while signed in. It is an ordinary account in every way
+    // except that the network administrators can see whose alt it is. The link is
+    // taken from the SESSION, never trusted from the client, so no one can file an
+    // alt under someone else's name. Like any self-registration it is queued for
+    // review — an administrator admits it from the panel, where it is tagged an alt.
+    let altActor = null;
+    if (req.body && req.body.asAlt) {
+      altActor = await actorFromReq(req);
+      if (!altActor) return res.status(401).json({ ok: false, error: "Sign in to create an alt account." });
+      if (altActor.banned) return res.status(403).json({ ok: false, error: "A suspended account cannot create alt accounts." });
+    }
+    const isAlt = !!altActor;
     const now = Date.now();
     // A registration now makes a *neutral* account — it belongs to no nation. There
     // is a linked Minecraft account and a name, and nothing else; each country grants
     // its own citizenship and offices afterward. `role: "citizen"` is only Lech's
     // baseline "no office" value and confers no citizenship of anywhere.
     //
-    // It also arrives UNAPPROVED. A self-registration is a request to join the
-    // network, not a joining of it: an administrator or moderator admits it from
-    // the Vintranet panel. No session is issued here, so a pending account cannot
-    // act at all until it is let in.
+    // Every self-registration — an alt included — arrives UNAPPROVED: a request to
+    // join the network, which an administrator or moderator admits from the Vintranet
+    // panel. No session is issued here, so the player signs in once it is let in
+    // (for an alt, they sign in as the alt itself).
     const doc = {
       _id: id, username: id, displayName, passwordHash,
       role: "citizen", mcUuid: mc.uuid, mcName: mc.name, pfpLocked: false, notes: "",
       approved: false, registeredAt: now,
       _selfRegistered: true, _writtenBy: id, _writtenAt: now,
     };
+    // Flagged as an alt, linked to the main. If the signed-in account is itself an
+    // alt, the new one points to the same head, so a player's alts all link to one
+    // main rather than forming a chain.
+    if (isAlt) {
+      doc.alt = true;
+      doc.altOf = String(altActor.altOf || altActor.username || "").toLowerCase();
+      doc.altCreatedBy = String(altActor.username || "").toLowerCase();
+      doc.altAt = now;
+    }
     // The nation they named at registration, carried on the account as a standing
     // request. It becomes visible to that ministry only once the account itself is
     // admitted to the network — a registration under review asks nothing of anyone.
     if (wanted) doc.citizenshipRequest = { country: wanted, status: "pending", at: now };
     await db.collection("accounts").insertOne(doc);
+    if (isAlt) return res.json({ ok: true, pending: true, alt: true,
+      message: "Your alt account has been created and is awaiting review. You'll be able to sign in as it once it is approved." });
     res.json({ ok: true, pending: true,
       message: "Your account has been created and is awaiting review. You'll be able to sign in once it is approved." });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
@@ -488,7 +512,15 @@ app.get("/api/data", async (req, res) => {
     await Promise.all(names.map(async (name) => {
       if (name === "accounts") {
         const accs = await db.collection("accounts").find({}).toArray();
-        const map = {}; accs.forEach(a => { map[a.username] = sanitizeAccount(a); });
+        // Whose alt an account is, is for the administrators — it links two
+        // identities a player may well keep apart. Everyone still sees the account
+        // itself; only a network administrator sees the alt link on it.
+        const admin = isSysAdmin(actor);
+        const map = {}; accs.forEach(a => {
+          const s = sanitizeAccount(a);
+          if (!admin) { delete s.alt; delete s.altOf; delete s.altCreatedBy; delete s.altAt; }
+          map[a.username] = s;
+        });
         out["mi_accounts"] = map; return;
       }
       if (name === "singletons") {
